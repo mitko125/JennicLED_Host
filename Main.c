@@ -8,6 +8,7 @@
 #include "GPRS_Uart.h"
 #include "FTDI_Uart.h"
 #include "twi_master_driver.h"
+#include "MODBUS_Master.h"
 #include "hardware.h"
 extern TWI_Master_t twiMaster;
 
@@ -43,7 +44,15 @@ extern TWI_Master_t twiMaster;
 #include "SerialLink.h"
 
 int num_pin = 0;
+
+
+//char enable_pin[5]="0000";
+//int verbosity = LOG_DEBUG;
+
+
 char enable_pin[5]="";
+int verbosity = LOG_NOTICE;//LOG_INFO;       /** Default log level */
+
 
 #ifdef WIN32
 
@@ -51,7 +60,7 @@ void get_pin(void){
 	strcpy_s(pin,5,PIN_STR);
 }
 
-#define HOST_VERSION 0x00010000UL
+#define HOST_VERSION 0x00020000UL
 
 
 #else	// WIN32
@@ -61,22 +70,10 @@ void get_pin(void){
 #endif	//WIN32
 
 
-
-
-typedef struct
-{
-    uint8_t     u8Type;
-    uint16_t    u16Length;
-    uint8_t     u8Message[2048];
-} sJennicModuleMsg;
-
-static sJennicModuleMsg sIncomingMsg;
-
-int verbosity = LOG_NOTICE;//LOG_INFO;       /** Default log level */
-
-static long time_sec;
-#define T_STATE_MASHINE 3
-
+#ifndef WIN32
+void MODBUS_Maser_Ok_reciv(void){
+}
+#endif //WIN32
 
 int main(void){
 
@@ -90,6 +87,10 @@ int main(void){
 	
 	get_pin();
 
+//	printf_P(PSTR("Read PIN : %s\n\r"),pin);
+//	printf_P(PSTR("Verbosity %d enable_pin %s pin %s\n\r"),verbosity,enable_pin,pin);
+			
+	
 	unsigned char BAD_RAM = 0;
 
 	if (check_crc((unsigned char*)psModuleSetConfig, sizeof(tsConfigBorderRuter))) {
@@ -117,6 +118,21 @@ int main(void){
 
 
 
+
+
+
+	//get_char();
+
+
+
+
+
+
+
+
+
+
+
     /* Wait up to five seconds. */
 #ifdef WIN32
 	if ((serial_open(15, 1000000) < 0) || (eTunDeviceOpen(13/*8*/,115200L) != E_TUN_OK))
@@ -125,38 +141,20 @@ int main(void){
   }
 #endif
 
+	#ifndef NO_COORDINATOR
   eJennicModuleStart();
-	time_sec = (long)time(NULL);
+	#endif
+	time_sec_sub = (long)time(NULL);
 		
 	while(1){
 		
 		main_loop();
 		
-		TunLoop();
-		
-    if(bSL_ReadMessage(&sIncomingMsg.u8Type, &sIncomingMsg.u16Length, sizeof(sIncomingMsg.u8Message), sIncomingMsg.u8Message)) {
-      if (eJennicModuleProcessMessage(sIncomingMsg.u8Type, sIncomingMsg.u16Length, sIncomingMsg.u8Message) != E_MODULE_OK) {
-        daemon_log(LOG_ERR, "Error communicating with border router module");
-				eJennicModuleStart();
-      }
-    }
-			
-    if (eTunDeviceReadPacket() != E_TUN_OK) {
-			daemon_log(LOG_ERR, "Error handling tun packet");
-		}
-      
-    // Select timeout 
-		if ( (time(NULL) - time_sec) >= T_STATE_MASHINE ) {
-			time_sec = (long)time(NULL);
-			if (eJennicModuleStateMachine(1) != E_MODULE_OK){
-				eJennicModuleStart();
-			}
-		}
-			
 		if(kb_hit()){
 			char c = get_char();
 
 			text();
+			
 #ifndef WIN32
 			if( strcmp(enable_pin,pin)!= 0){
 				if(num_pin < 4){
@@ -257,7 +255,9 @@ int main(void){
 				break;
 #endif //WIN32
 			case '0':
+				#ifndef NO_COORDINATOR
 				eJennicModuleStart();
+				#endif
 				break;
 			case 'l':
 			case 'L':
@@ -276,17 +276,30 @@ int main(void){
 			case 't':
 			case 'T':
 				{
-					printf_P(PSTR("\n\rSet On Hour:"));
-					psTimers->sTimerOn.u8Hour = get_digits();
+					printf_P(PSTR("\n\rSet On1 Hour:"));
+					psTimers->sTimerOn1.u8Hour = get_digits();
 					make_crc((unsigned char*)psTimers, sizeof(tsTimers));
-					printf_P(PSTR("\n\rSet On Minute:"));
-					psTimers->sTimerOn.u8Minute = get_digits();
+					printf_P(PSTR("\n\rSet On1 Minute:"));
+					psTimers->sTimerOn1.u8Minute = get_digits();
 					make_crc((unsigned char*)psTimers, sizeof(tsTimers));
-					printf_P(PSTR("\n\rSet Off Hour:"));
-					psTimers->sTimerOff.u8Hour = get_digits();
+					printf_P(PSTR("\n\rSet Off1 Hour:"));
+					psTimers->sTimerOff1.u8Hour = get_digits();
 					make_crc((unsigned char*)psTimers, sizeof(tsTimers));
-					printf_P(PSTR("\n\rSet Off Minute:"));
-					psTimers->sTimerOff.u8Minute = get_digits();
+					printf_P(PSTR("\n\rSet Off1 Minute:"));
+					psTimers->sTimerOff1.u8Minute = get_digits();
+					make_crc((unsigned char*)psTimers, sizeof(tsTimers));
+					
+					printf_P(PSTR("\n\rSet On2 Hour:"));
+					psTimers->sTimerOn2.u8Hour = get_digits();
+					make_crc((unsigned char*)psTimers, sizeof(tsTimers));
+					printf_P(PSTR("\n\rSet On2 Minute:"));
+					psTimers->sTimerOn2.u8Minute = get_digits();
+					make_crc((unsigned char*)psTimers, sizeof(tsTimers));
+					printf_P(PSTR("\n\rSet Off2 Hour:"));
+					psTimers->sTimerOff2.u8Hour = get_digits();
+					make_crc((unsigned char*)psTimers, sizeof(tsTimers));
+					printf_P(PSTR("\n\rSet Off2 Minute:"));
+					psTimers->sTimerOff2.u8Minute = get_digits();
 					make_crc((unsigned char*)psTimers, sizeof(tsTimers));
 				}
 				break;
@@ -315,9 +328,11 @@ int main(void){
 				}
 				break;
 			case 'a':
+			case 'A':
 				key_a = 1;
 				break;
 			case 'b':
+			case 'B':
 				key_b = 1;
 				break;
 			case ' ':
@@ -331,8 +346,10 @@ int main(void){
 	}
 #ifdef WIN32
 end:
+	#ifndef NO_COORDINATOR
 	daemon_log(LOG_INFO, "Resetting Coordinator Module");
 	eJennicModuleReset();
+	#endif
 finish:
 	save_RAM();
 #endif //WIN32

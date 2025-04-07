@@ -2,10 +2,12 @@
 #include "FTDI_Uart.h"
 #include "twi_master_driver.h"
 #include "hardware.h"
+#include "MODBUS_Master.h"
 #else	//WIN32
 #include <windows.h>
 #include <conio.h>
 #include <stdint.h>
+#include <time.h>
 #include "windows_sub.h"
 #endif //WIN32
 
@@ -19,6 +21,7 @@
 
 #include "JennicModule.h"
 #include "TunDevice.h"
+#include "SerialLink.h"
 
 //#undef LOG_DEBUG
 //#define LOG_DEBUG 6
@@ -27,6 +30,19 @@ unsigned char date_time[6];
 unsigned char error_clock;
 uint32_t time_1s = 0;
 uint32_t time_1m = 0;
+
+
+typedef struct
+{
+    uint8_t     u8Type;
+    uint16_t    u16Length;
+    uint8_t     u8Message[2048];
+} sJennicModuleMsg;
+
+static sJennicModuleMsg sIncomingMsg;
+
+long time_sec_sub;
+#define T_STATE_MASHINE 3
 
 void ClearRam(void) {
 	uint16_t i;
@@ -56,8 +72,8 @@ uint8_t get_digits(void) {
 }
 
 void text(void){
-	printf_P(PSTR("\n\rJennic HOST V%d.%d.%d\n\r"),(unsigned int)(ntohl(sRouterStatus.u32HostVersion)>>16),
-		(unsigned int)((ntohl(sRouterStatus.u32HostVersion)>>8)&0xFF),(unsigned int)(ntohl(sRouterStatus.u32HostVersion)&0xFF));
+	printf_P(PSTR("\n\rJennic HOST V%d.%d.%d  Size NVM = %u bytes Free = %d bytes\n\r"),(unsigned int)(ntohl(sRouterStatus.u32HostVersion)>>16),
+		(unsigned int)((ntohl(sRouterStatus.u32HostVersion)>>8)&0xFF),(unsigned int)(ntohl(sRouterStatus.u32HostVersion)&0xFF),END_NVM,SIZE_RAM-END_NVM);
 	
 	printf_P(PSTR("1 Broadcast 1\n\r"));
 	printf_P(PSTR("2 Broadcast 127\n\r"));
@@ -104,7 +120,8 @@ void text(void){
 	put_char((date_time[1]>>4)+'0');put_char(((date_time[1])&0x0f)+'0'); put_char(':');
 	put_char((date_time[0]>>4)+'0');put_char(((date_time[0])&0x0f)+'0');
 	
-	printf_P(PSTR(" On %2X:%02X  Off %2X:%02X\n\r"), psTimers->sTimerOn.u8Hour, psTimers->sTimerOn.u8Minute, psTimers->sTimerOff.u8Hour, psTimers->sTimerOff.u8Minute);
+	printf_P(PSTR(" On1 %2X:%02X  Off1 %2X:%02X    On2 %2X:%02X  Off2 %2X:%02X\n\r"), psTimers->sTimerOn1.u8Hour, psTimers->sTimerOn1.u8Minute, psTimers->sTimerOff1.u8Hour, psTimers->sTimerOff1.u8Minute,
+		psTimers->sTimerOn2.u8Hour, psTimers->sTimerOn2.u8Minute, psTimers->sTimerOff2.u8Hour, psTimers->sTimerOff2.u8Minute);
 }
 
 static uint8_t old_sec = 0;
@@ -206,7 +223,7 @@ void OffLamp(void){
 
 #define COU_BROADCAST 2
 #define TIME_BROADCAST 15
-static uint8_t time[2], on[2], off[2];
+static uint8_t curren_time[2], on[2], off[2];
 static uint8_t broadcast_group;
 static uint8_t cou_broadcast = 0;
 static uint8_t time_broadcast = 0;
@@ -216,21 +233,21 @@ static int test_time(void) {
 
 	if (memcmp(on, off, 2) != 0) {
 		if (memcmp(on, off, 2) > 0) {
-			if (memcmp(time, on, 2) >= 0) {
+			if (memcmp(curren_time, on, 2) >= 0) {
 				flag_on = 1;
-			}else if (memcmp(off, time, 2) > 0) {
+			}else if (memcmp(off, curren_time, 2) > 0) {
 				flag_on = 1;
 			}else {
 				flag_on = -1;
 			}
-		}else if ((memcmp(time, on, 2) >= 0) && (memcmp(time, off, 2) < 0)) {
+		}else if ((memcmp(curren_time, on, 2) >= 0) && (memcmp(curren_time, off, 2) < 0)) {
 			flag_on = 1;
 		}else {
 			flag_on = -1;
 		}
 	}
 
-//	daemon_log(LOG_DEBUG, "%2X:%02X %2X:%02X %2X:%02X %d",time[0],time[1],on[0],on[1],off[0],off[1],flag_on);
+//	daemon_log(LOG_DEBUG, "%2X:%02X %2X:%02X %2X:%02X %d",curren_time[0],curren_time[1],on[0],on[1],off[0],off[1],flag_on);
 
 	return flag_on;
 }
@@ -300,6 +317,38 @@ void TestSubTreeNodes(void){
 
 void main_loop(void){
 
+#ifndef WIN32
+	wdt_reset();
+#endif
+	
+	TunLoop();
+
+#ifndef NO_COORDINATOR
+  if(bSL_ReadMessage(&sIncomingMsg.u8Type, &sIncomingMsg.u16Length, sizeof(sIncomingMsg.u8Message), sIncomingMsg.u8Message)) {
+    if (eJennicModuleProcessMessage(sIncomingMsg.u8Type, sIncomingMsg.u16Length, sIncomingMsg.u8Message) != E_MODULE_OK) {
+      daemon_log(LOG_ERR, "Error communicating with border router module");
+			eJennicModuleStart();
+    }
+  }
+#endif //NO_COORDINATOR
+	if (eTunDeviceReadPacket() != E_TUN_OK) {
+		daemon_log(LOG_ERR, "Error handling tun packet");
+	}
+#ifndef NO_COORDINATOR
+  // Select timeout 
+	if ( (time(NULL) - time_sec_sub) >= T_STATE_MASHINE ) {
+		time_sec_sub = (long)time(NULL);
+		if (eJennicModuleStateMachine(1) != E_MODULE_OK){
+			eJennicModuleStart();
+		}
+	}
+#endif //NO_COORDINATOR
+
+
+#ifndef WIN32
+//	MODBUS_Master_Loop();
+#endif
+	
 	get_time();
 	
 	if( old_sec != date_time[0] ){
@@ -347,11 +396,17 @@ void main_loop(void){
 
 		if( error_clock == 0 ){
 			int result;
-			time[0] = date_time[2]; time[1] = date_time[1];
+			curren_time[0] = date_time[2]; curren_time[1] = date_time[1];
 
-			on[0]= psTimers->sTimerOn.u8Hour; on[1]= psTimers->sTimerOn.u8Minute;
-			off[0]= psTimers->sTimerOff.u8Hour; off[1]= psTimers->sTimerOff.u8Minute;
-			result = test_time();
+			on[0]= psTimers->sTimerOn1.u8Hour; on[1]= psTimers->sTimerOn1.u8Minute;
+			off[0]= psTimers->sTimerOff1.u8Hour; off[1]= psTimers->sTimerOff1.u8Minute;
+			if( (result = test_time()) < 0 ){
+				on[0]= psTimers->sTimerOn2.u8Hour; on[1]= psTimers->sTimerOn2.u8Minute;
+				off[0]= psTimers->sTimerOff2.u8Hour; off[1]= psTimers->sTimerOff2.u8Minute;
+				if( (result = test_time()) == 0 )
+					result = -1;
+			}
+			
 			if (result > 0)	OnTimer();	else if (result < 0)	OffTimer();
 
 			if (on_relay) {
@@ -377,7 +432,7 @@ void main_loop(void){
 				//next_light = 10;
 				if (next_group != 255) {
 					if (current_light != next_light) {
-						daemon_log(LOG_DEBUG, "%2X:%02X Group %d Light %d", time[0], time[1], next_group + 1, next_light);
+						daemon_log(LOG_DEBUG, "%2X:%02X Group %d Light %d", curren_time[0], curren_time[1], next_group + 1, next_light);
 						broadcast_group = next_group;
 						cou_broadcast = COU_BROADCAST;
 						time_broadcast = TIME_BROADCAST;

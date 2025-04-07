@@ -1,6 +1,7 @@
 extern unsigned char date_time[];
 extern unsigned char error_clock;
 extern uint8_t on_relay;
+extern long time_sec_sub;
 
 void text(void);
 void main_loop(void);

@@ -2,6 +2,10 @@
 #warning: #warning "Compiler optimizations disabled; functions from <util/delay.h> won't work as designed" не е важен
 #и в момента е избегнат с //#include <util/delay.h> в avr_compiler.h
 
+#за тестване на концентратори за улично осветление (виж менюто по RS/USB  115200/8N1)
+#V2_0 тества и галванично изолирания RS485 ехо 115200/8N1
+
+
 MCU = atxmega128a1
 
 
@@ -21,7 +25,7 @@ TARGET = TestHost
 
 
 # List C source files here. (C dependencies are automatically generated.)
-SRC = Main.c clksys_driver.c eeprom_driver.c ebi_driver.c twi_master_driver.c CRD2_Uart.c GPRS_Uart.c FTDI_Uart.c
+SRC = Main.c clksys_driver.c eeprom_driver.c ebi_driver.c twi_master_driver.c CRD2_Uart.c GPRS_Uart.c FTDI_Uart.c RS485_Uart.c
 #spi_driver.c
 
 # List Assembler source files here.

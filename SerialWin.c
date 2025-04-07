@@ -41,6 +41,7 @@
 
 #include <windows.h>
 #include <string.h>
+#include <conio.h>
 
 
 #include <winbase.h>
@@ -95,8 +96,10 @@ int serial_open(int port, uint32_t baud)
 
 	if( (HANDLE)fd == INVALID_HANDLE_VALUE)	 {
     daemon_log(LOG_ERR, "Couldn't open serial device %s", device);
+		printf("Press any key\n\r");
+		_getch();
     return -1;
-  }
+	}
 
 
 

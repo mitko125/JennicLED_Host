@@ -4,6 +4,7 @@
 #include "CRD2_Uart.h"
 #include "GPRS_Uart.h"
 #include "FTDI_Uart.h"
+#include "RS485_Uart.h"
 #include "twi_master_driver.h"
 #include "defs.h"
 #include <stdio.h>
@@ -26,6 +27,7 @@ static void text(void){
 
 	put_str("\n\rJennic HOST Hardware test\n\r");
 	
+	put_str("0 Echo RS485\n\r");
 	put_str("1,2,3,4 Test RELAYS\n\r");
 		
 	put_str("5 GPRS JP6 RST\n\r");
@@ -180,6 +182,8 @@ int main(void){
 	
 	FTDI_UartInit();
 	
+	RS485_UartInit();
+	
 		/* Initialize TWI master. */
 	TWI_MasterInit(&twiMaster,
 	               &TWIF,
@@ -231,6 +235,20 @@ int main(void){
 		text();
 		
 		switch(get_char()){
+			case '0':
+				if( RS485_kb_hit() ){
+					char str[100];
+					uint8_t i = 0;
+					while( RS485_kb_hit() ){
+						str[i++] = (char)RS485_get_char();
+						str[i] = 0;
+					}
+					put_str("From RS485 uart recived:");
+					put_str(str);
+					put_str("\n\r");
+					RS485_put_str(str);
+				}
+				break;
 			case '1':
 				if( PORT_RELAY.IN & RELAY1 )
 					PORT_RELAY.OUTCLR = RELAY1;

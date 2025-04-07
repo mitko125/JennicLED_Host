@@ -12,6 +12,7 @@ extern char pin[];
 
 extern uint8_t key_a,key_b;
 extern uint8_t t_min_no_connect;
+extern volatile uint16_t time_sleep_SIM;
 
 #if defined __cplusplus
 extern "C" {

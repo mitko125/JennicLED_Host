@@ -45,6 +45,17 @@
 //#define CRD2_DIR_PIN PIN0_bm
 #define CRD2_BOUDE 115200UL 
 
+//RS485 uart JP8
+#define RS485_uart USARTF0
+#define RS485_Port PORTF
+#define	RS485_RX_vect USARTF0_RXC_vect
+#define RS485_TX_vect	USARTF0_TXC_vect
+#define RS485_DRE_vect	USARTF0_DRE_vect
+#define RS485_TX_PIN PIN3_bm
+#define RS485_RX_PIN PIN2_bm
+#define RS485_DIR_PIN PIN4_bm
+#define RS485_BOUDE 115200UL 
+
 //Relay
 #define PORT_RELAY	PORTA
 #define RELAY1 PIN4_bm

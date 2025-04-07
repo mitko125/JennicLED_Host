@@ -64,11 +64,11 @@ void save_RAM(void)
 void get_time(void)
 {
 	SYSTEMTIME lpSystemTime;
-	GetSystemTime(&lpSystemTime);
+	GetLocalTime(&lpSystemTime);	//GetSystemTime - по Гринуич  GetLocalTime - местно време
 	date_time[5] = INT_BCD((lpSystemTime.wYear % 100));
 	date_time[4] = INT_BCD(lpSystemTime.wMonth);
 	date_time[3] = INT_BCD(lpSystemTime.wDay);
-	date_time[2] = INT_BCD((lpSystemTime.wHour + 3));
+	date_time[2] = INT_BCD((lpSystemTime.wHour));// +3));
 	date_time[1] = INT_BCD(lpSystemTime.wMinute);
 	date_time[0] = INT_BCD(lpSystemTime.wSecond);
 }

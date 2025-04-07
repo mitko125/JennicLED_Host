@@ -7,6 +7,7 @@
 #include "GPRS_Uart.h"
 #include "FTDI_Uart.h"
 #include "twi_master_driver.h"
+#include "MODBUS_Master.h"
 
 #include "log.h"
 #include "sub.h"
@@ -18,6 +19,32 @@
 #include "hardware.h"
 
 #include "TunDevice.h"
+
+#define TIME 50	//50uS
+static uint8_t cou_1ms = 0;
+unsigned int cou_1s = 0;
+
+ISR(TCC0_OVF_vect)
+{
+	if(MODBUS_Master_timer_start_RTU < 255)	//da ne se prewarta
+		MODBUS_Master_timer_start_RTU++;
+		
+	//if( PORT_TSTLED.IN & TSTLED )	PORT_TSTLED.OUTCLR = TSTLED;	else	PORT_TSTLED.OUTSET = TSTLED;
+		
+	if( cou_1ms == 20 ){
+		cou_1ms = 0;
+			
+		if( time_sleep_SIM )
+			time_sleep_SIM--;
+			
+		if(	 cou_1s == 1000 ){
+			cou_1s = 0;
+			
+		}else
+			cou_1s ++;
+	}else
+		cou_1ms ++ ;
+}
 
 int ser0Put(char c,FILE *stream)
 {
@@ -102,6 +129,12 @@ void InitHardware(void){
 	               TWI_MASTER_INTLVL_LO_gc,
 	               TWI_BAUDSETTING);
 	
+//	MODBUS_Master_init();
+	
+	//прекъсване на 50us
+  TCC0.PER = (uint16_t)((((F_CPU/64)*TIME)/1000000)-1);
+	TCC0.CTRLA = ( TCC0.CTRLA & ~TC0_CLKSEL_gm ) | TC_CLKSEL_DIV64_gc;
+	TCC0.INTCTRLA = TC_OVFINTLVL_LO_gc;
 	
 	sei();	//__enable_interrupt();
 	/* Enable low interrupt level in PMIC. */

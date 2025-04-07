@@ -1,3 +1,7 @@
+#undef NO_COORDINATOR
+
+
+
 struct in6_addr {
 	union {
 		uint8_t  Byte[16];
@@ -194,9 +198,12 @@ PACKED(
 	typedef struct
 {
 	tsDateTime sDateTime;
-	tsTimerHourMinute sTimerOn;
-	tsTimerHourMinute sTimerOff;
+	tsTimerHourMinute sTimerOn1;
+	tsTimerHourMinute sTimerOff1;
 	tsGrourTimer sGroupTimer[MAX_GROUP_TIMERS];
+	//V2
+	tsTimerHourMinute sTimerOn2;
+	tsTimerHourMinute sTimerOff2;
 })tsTimers;
 
 PACKED(
@@ -205,7 +212,7 @@ PACKED(
 	uint8_t MAC[8];
 })tsMAC_Address;
 
-#define MAX_ACCESS_REJECT_TABLE 16
+#define MAX_ACCESS_REJECT_TABLE 16	//25
 PACKED(
 	typedef struct
 {
@@ -237,7 +244,7 @@ typedef struct
 	uint8_t u8FlagEnd;
 })tsSendTable;
 
-#define ROUTE_TABLE_ENTRIES		300
+#define ROUTE_TABLE_ENTRIES		300	//300	//Profile 4 е за 50-150 устройсва, но го оставяме на 300
 #define MAX_SEND_MAC			20
 #define MAX_SEND_LAMP_STATUS	10				
 
@@ -295,4 +302,12 @@ PACKED(
 
 #define OFFSET_u8GPRS_TX_Buf (OFFSET_u8GPRS_RX_Buf + 1024)
 #define u8GPRS_TX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8GPRS_TX_Buf))
+
+#define OFFSET_u8MODBUS_RX_Buf (OFFSET_u8GPRS_TX_Buf + 1024)
+#define u8MODBUS_RX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8MODBUS_RX_Buf))
+
+#define OFFSET_u8MODBUS_TX_Buf (OFFSET_u8MODBUS_RX_Buf + 512)
+#define u8MODBUS_TX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8MODBUS_TX_Buf))
+
+#define END_NVM (OFFSET_u8MODBUS_TX_Buf + 512)
 

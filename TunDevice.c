@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include "windows_sub.h"
 #else	//WIN32
+#include "avr_compiler.h"
+#include "GPRS_Uart.h"
 #include "hardware.h"
 #endif	//WIN32
 
@@ -24,12 +26,6 @@
 
 #include "TunDevice.h"
 #include "JennicModule.h"
-
-#ifndef WIN32
-#include "avr_compiler.h"
-#include "GPRS_Uart.h"
-#include "hardware.h"
-#endif
 
 uint8_t key_a,key_b;
 
@@ -69,7 +65,6 @@ int last_clients = 0;
 
 // прототип функции, обслуживающий подключившихся пользователей
 int SexToClient(int * client);
-
 
 int MyThread(void *p) {
 	char buff[1024]; // Буфер для различных нужд
@@ -344,12 +339,18 @@ int sim_serial_write(const unsigned char data)
 
 #endif //WIN32
 
-void SimWrite(const unsigned char * text) {
-	if (verbosity >= LOG_DEBUG)
-		daemon_log(LOG_DEBUG, "To SIM:%s", text);
-	while (*text)
-		sim_serial_write(*text++);
-}
+
+
+
+
+
+
+
+
+
+
+#define T_WAIT_PACKET	4000	//ms
+#define T_WAIT_BUTE 300	//ms
 
 typedef enum {
 	AT_test,
@@ -357,20 +358,41 @@ typedef enum {
 	CIFSR_test,
 	PIN_test,
 	PIN_set,
-	CIPMUX,
+	CIPMUX,	//5
 	CREG,
 	CGATT,
 	CSQ,
 	CSTT,
-	CIICR,
-	BAD_PIN,
-	TO_Open,
-	Opened,
+	CIICR,	//10
+	BAD_PIN,	
+	TO_Open,	//12
+	Opened,	//13
 }sim900state;
+
 sim900state state = AT_test;
-static long time_sec;
-#define T_STATE_WAIT_SIM 4
-static uint8_t fl_read = 0;
+static uint8_t fl_read = 0;	//при state = Opened е = 1 и прескача автомата за стартиране на SIM
+static uint8_t no_SimLoop = 0;
+volatile uint16_t time_sleep_SIM = T_WAIT_PACKET;
+
+static void SleepSIM(uint16_t sleep_time){
+	cli();	//__disable_interrupt();
+	time_sleep_SIM = sleep_time;
+	sei();	//__enable_interrupt();
+	no_SimLoop = 1;
+	while(time_sleep_SIM)
+		main_loop();
+	no_SimLoop = 0;
+}
+
+void SimWrite(const unsigned char * text) {
+	if (verbosity >= LOG_DEBUG)
+		//daemon_log(LOG_DEBUG, "To %d %d %d SIM:%s", state, fl_read,no_SimLoop,text);
+		daemon_log(LOG_DEBUG, "To SIM:%s",text);
+	while (*text)
+		sim_serial_write(*text++);
+}
+
+#define T_STATE_WAIT_SIM 5
 static int recived = 0;
 static int max_recived;
 static unsigned int to_reciv = 0;
@@ -379,7 +401,9 @@ static unsigned char buffer[MAX_RECIV];
 static unsigned int client;
 static unsigned int to_send = 0;
 void SimRead(unsigned char *pBuf, int lenght) {
-	time_sec = (long)time(NULL);
+	cli();	//__disable_interrupt();
+	time_sleep_SIM = T_WAIT_PACKET;
+	sei();	//__enable_interrupt();
 	fl_read = 1;
 	recived = 0;
 	max_recived = lenght;
@@ -387,25 +411,31 @@ void SimRead(unsigned char *pBuf, int lenght) {
 
 static uint8_t fl_test_connect = 0;
 
-void On_off_SIM(void){
+static uint8_t first_time = 1;
 
+void On_off_SIM(void){
+	
+	if( first_time )
+		first_time = 0;
+	else
+		sRouterStatus.u16SimErrors = htons(ntohs(sRouterStatus.u16SimErrors) + 1);
+	
 	daemon_log(LOG_DEBUG, "On/Off SIM");
 	fl_test_connect = 0;
 	t_min_no_connect = 0;
 	
+	state = AT_test;
+	
 #ifndef WIN32
 	PORT_GPRS_RST.OUTSET = GPRS_RST;
 	
-	time_sec = (long)time(NULL);
-	while((time(NULL) - time_sec) < 2)
-		main_loop();
-	time_sec = (long)time(NULL);
-	if(time_sec > 10)
-		time_sec-=10;
-	else
-		time_sec = 0;
-	
+	SleepSIM(1000);
+
 	PORT_GPRS_RST.OUTCLR = GPRS_RST;
+	
+	cli();	//__disable_interrupt();
+	time_sleep_SIM = T_WAIT_PACKET;
+	sei();	//__enable_interrupt();
 			
 #endif	//WIN32
 		
@@ -413,26 +443,27 @@ void On_off_SIM(void){
 
 void LoopRead(void) {
 	if( t_min_no_connect >= MAX_TIME_NO_CONNECT ){
-		state = AT_test;
+		//printf("                                             t_min_no_connect >= MAX_TIME_NO_CONNECT\n\r");
 		On_off_SIM();
-		sRouterStatus.u16SimErrors = htons(ntohs(sRouterStatus.u16SimErrors) + 1);
 		return;
 	} 
 	
-	if ((time(NULL) - time_sec) >= T_STATE_WAIT_SIM) {
-		if (state == Opened) {
-			time_sec = (long)time(NULL);
+	if ( ( time_sleep_SIM == 0 ) ){
+		if ( state == Opened ) {
+			cli();	//__disable_interrupt();
+			time_sleep_SIM = T_WAIT_PACKET;
+			sei();	//__enable_interrupt();
 			return;
 		}
 		fl_read = 0;
-		if ((recived == 0) && (state < Opened)){
-			state = AT_test;
+		if ( (recived == 0) && (state < Opened) ){
+			//printf("                                               (recived == 0) && (state < Opened)\n\r");
 			On_off_SIM();
-			sRouterStatus.u16SimErrors = htons(ntohs(sRouterStatus.u16SimErrors) + 1);
 		}else if (recived) {
 			buffer[recived] = 0;
 			if (verbosity >= LOG_DEBUG)
-				daemon_log(LOG_DEBUG, "From SIM:%s", buffer);
+				//daemon_log(LOG_DEBUG, "From %d %d %d SIM:%s", state ,fl_read,no_SimLoop, buffer);
+				daemon_log(LOG_DEBUG, "From SIM:%s",buffer);
 			switch (state) {
 			case AT_test:
 			{
@@ -461,8 +492,9 @@ void LoopRead(void) {
 			{
 				if (recived >10) {
 					state = TO_Open;
-				}
-				else {
+				}else if( recived == 0 ){
+					state = AT_test;
+				}else {
 					state = PIN_test;
 				}
 				break;
@@ -575,6 +607,9 @@ void LoopRead(void) {
 			if( recived < MAX_RECIV )
 				buffer[recived] = u8Data;
 			recived++;
+			cli();	//__disable_interrupt();
+			time_sleep_SIM = T_WAIT_BUTE;
+			sei();	//__enable_interrupt();
 			if (state == Opened) {
 				if (recived && (recived == to_reciv)) {
 					ipv6_buf[recived] = 0;
@@ -614,6 +649,7 @@ void LoopRead(void) {
 				{
 					buffer[recived] = 0;
 					if (verbosity >= LOG_DEBUG)
+						//daemon_log(LOG_DEBUG, "From %d %d %d SIM:%s", state ,fl_read,no_SimLoop, buffer);
 						daemon_log(LOG_DEBUG, "From SIM:%s", buffer);
 					if ( (recived > 12) && (memcmp(buffer, "+RECEIVE,", 9) == 0 )) {
 					
@@ -624,13 +660,11 @@ void LoopRead(void) {
 						client = atoi((char*)(buffer + 9));
 						daemon_log(LOG_DEBUG, "Client % d to recived SIM:%d", client,to_reciv);
 					}else if( (recived > 11) && (memcmp(buffer, "+PDP: DEACT", 11) == 0 )){
-						state = AT_test;
+						//printf("                                               (recived > 11) && (memcmp(buffer, +PDP: DEACT, 11) == 0 \n\r");
 						On_off_SIM();
-						sRouterStatus.u16SimErrors = htons(ntohs(sRouterStatus.u16SimErrors) + 1);
 					}else if( (recived > 13) && (memcmp(buffer, "+CIPSERVER: 0", 13) == 0 )){
-						state = AT_test;
+						//printf("                                                (recived > 13) && (memcmp(buffer, +CIPSERVER: 0, 13) == 0  \n\r");
 						On_off_SIM();
-						sRouterStatus.u16SimErrors = htons(ntohs(sRouterStatus.u16SimErrors) + 1);
 					}else if( (recived > 13) && (memcmp(buffer, "+CIPSERVER: 1", 13) == 0 )){
 						t_min_no_connect = 0;
 						fl_test_connect = 0;
@@ -654,16 +688,19 @@ void SimLoop(void) {
 		pHC->fl_to_write = false;
 		pHC->fl_write = false;*/
 	}
+	
 	if (fl_read){
 		if(key_a){
 			key_a = 0;
+			//printf("opi2 $d\n\r",key_b);
 			SimWrite((unsigned char*)"AT+CIPSERVER?\r\n");
-			//SimRead(buffer, sizeof(buffer));
+			SimRead(buffer, sizeof(buffer));
 		}
 		if(key_b){
 			key_b = 0;
+			//printf("opi2 $d\n\r",key_b);
 			SimWrite((unsigned char*)"AT+CIPSTATUS\r\n");
-			//SimRead(buffer, sizeof(buffer));
+			SimRead(buffer, sizeof(buffer));
 		}
 		if( state == Opened ){
 			if( fl_test_connect == 0 ){
@@ -674,34 +711,39 @@ void SimLoop(void) {
 			}
 		}
 		LoopRead();
-	}else {
+	}else{
 		switch (state) {
 		case AT_test:
 		{
+			SleepSIM(3000);
 			SimWrite((unsigned char*)"AT\r\n");
 			SimRead(buffer, sizeof(buffer));
 		}
 		break;
 		case ATE0:
 		{
+			SleepSIM(1000);
 			SimWrite((unsigned char*)"ATE0\r\n");
 			SimRead(buffer, sizeof(buffer));
 		}
 		break;
 		case CIFSR_test:
 		{
+			SleepSIM(1000);
 			SimWrite((unsigned char*)"AT+CIFSR\r\n");
 			SimRead(buffer, sizeof(buffer));
 		}
 		break;
 		case PIN_test:
 		{
+			SleepSIM(1000);
 			SimWrite((unsigned char*)"AT+CPIN?\r\n");
 			SimRead(buffer, sizeof(buffer));
 		}
 		break;
 		case PIN_set:
 		{
+			SleepSIM(3000);
 			char text[50];
 			int old_ver = verbosity;
 			verbosity = LOG_WARNING;
@@ -717,42 +759,49 @@ void SimLoop(void) {
 		break;
 		case CIPMUX:
 		{
+			SleepSIM(1000);
 			SimWrite((unsigned char*)"AT+CIPMUX=1\r\n");
 			SimRead(buffer, sizeof(buffer));
 		}
 		break;
 		case CREG:
 		{
+			SleepSIM(1000);
 			SimWrite((unsigned char*)"AT+CREG?\r\n");
 			SimRead(buffer, sizeof(buffer));
 		}
 		break;
 		case CGATT:
 		{
+			SleepSIM(4000);
 			SimWrite((unsigned char*)"AT+CGATT?\r\n");
-			SimRead(buffer, sizeof(buffer));			
+			SimRead(buffer, sizeof(buffer));		
 		}
 		break;
 		case CSQ:
 		{
+			SleepSIM(1000);
 			SimWrite((unsigned char*)"AT+CSQ\r\n");
 			SimRead(buffer, sizeof(buffer));
 		}
 		break;
 		case CSTT:
 		{
+			SleepSIM(1000);
 			SimWrite((unsigned char*)"AT+CSTT=\"tvulosv\"\r\n");
 			SimRead(buffer, sizeof(buffer));
 		}
 		break;
 		case CIICR:
 		{
+			SleepSIM(1000);
 			SimWrite((unsigned char*)"AT+CIICR\r\n");
 			SimRead(buffer, sizeof(buffer));
 		}
 		break;
 		case TO_Open:
 		{
+			SleepSIM(1000);
 			SimWrite((unsigned char*)"AT+CIPSERVER=1,1873\r\n");
 			SimRead(buffer, sizeof(buffer));
 		}
@@ -774,7 +823,8 @@ void SimLoop(void) {
 
 void TunLoop(void) {
 #ifdef SIM_900
-	SimLoop();
+	if( no_SimLoop == 0 )
+		SimLoop();
 #endif
 }
 
@@ -896,12 +946,16 @@ teTunStatus eTunDeviceReadPacket(void)
 					u16EntryCount = ntohs(psSendLamsMAC->u16EntryCount);
 
 					for (i = 0; i < u16EntryCount;i++) {
-						memcpy(&((psLampTable + u16FirstTableEntry + i)->sLampStatus.sMAC_Address.MAC[0]), psMAC_Address, sizeof(tsMAC_Address));
-						memset(&((psLampTable + u16FirstTableEntry + i)->sLampStatus.sLastContacts), 0, sizeof(tsDateTime));
+						if( ( u16FirstTableEntry + i ) < ROUTE_TABLE_ENTRIES ){
+							memcpy(&((psLampTable + u16FirstTableEntry + i)->sLampStatus.sMAC_Address.MAC[0]), psMAC_Address, sizeof(tsMAC_Address));
+							memset(&((psLampTable + u16FirstTableEntry + i)->sLampStatus.sLastContacts), 0, sizeof(tsDateTime));
+						}
 						psMAC_Address++;
 					}
-					if (psSendLamsMAC->u8FlagEnd)
-						u16_LampsInTable = u16FirstTableEntry + u16EntryCount;
+					if (psSendLamsMAC->u8FlagEnd){
+						if( ( u16_LampsInTable = u16FirstTableEntry + u16EntryCount ) > ROUTE_TABLE_ENTRIES )
+							u16_LampsInTable = ROUTE_TABLE_ENTRIES;
+					}
 					SendACK();
 				}
 				break;
@@ -993,7 +1047,9 @@ teTunStatus eTunDeviceReadPacket(void)
 			case COMMAND_SET_HOST_DATA:
 				memcpy(&sModuleSetConfig, ipv6_buf + HEADER_SIZE + 1, sizeof(tsConfigBorderRuter));
 				make_crc((unsigned char*)psModuleSetConfig, sizeof(tsConfigBorderRuter));
+				#ifndef NO_COORDINATOR
 				eJennicModuleStart();
+				#endif
 				SendACK();
 				break;
 			case IPv6_PACKET:
@@ -1010,12 +1066,14 @@ teTunStatus eTunDeviceReadPacket(void)
 				break;
 			case COMMAND_CLEAR_RAM:
 				ClearRam();
+				#ifndef NO_COORDINATOR
 				eJennicModuleStart();
+				#endif
 				SendACK();
 				break;
 			case COMMAND_TIME_ON_OFF:
-				memcpy(&(psTimers->sTimerOn),ipv6_buf + HEADER_SIZE + 1,sizeof(tsTimerHourMinute));
-				memcpy(&(psTimers->sTimerOff),ipv6_buf + HEADER_SIZE + 1 + sizeof(tsTimerHourMinute) ,sizeof(tsTimerHourMinute));
+				memcpy(&(psTimers->sTimerOn1),ipv6_buf + HEADER_SIZE + 1,sizeof(tsTimerHourMinute));
+				memcpy(&(psTimers->sTimerOff1),ipv6_buf + HEADER_SIZE + 1 + sizeof(tsTimerHourMinute) ,sizeof(tsTimerHourMinute));
 				SendACK();
 				break;
 			case GET_STATUS_ROUTER:
@@ -1035,6 +1093,8 @@ teTunStatus eTunDeviceReadPacket(void)
 				if( PORT_RELAY.IN & RELAY2 ) sRouterStatus.u8Outputs |= 0x02;
 				if( PORT_RELAY.IN & RELAY3 ) sRouterStatus.u8Outputs |= 0x04;
 				if( PORT_RELAY.IN & RELAY4 ) sRouterStatus.u8Outputs |= 0x08;
+				#else //WIN32
+				if( on_relay )	sRouterStatus.u8Outputs |= 0x01;
 				#endif	//WIN32
 				memcpy(ipv6_buf + HEADER_SIZE + 1, (unsigned char*)&sRouterStatus, sizeof(tsRouterStatus));
 				SendPacage(HEADER_SIZE + 1 + sizeof(tsRouterStatus));

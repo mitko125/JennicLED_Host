@@ -14,7 +14,15 @@
 #всички съобщения които са само за приемане се отговаря с ACK с цел дебуфириране на TCP пакетите (няма flush)
 #оправено е четенето на таблицата на свързаните към рутера
 
-HOST_VERSION = 0x00010100UL
+#V2_0 до бавен е втори такмер вкл./изкл. заради високата цчна на тока (свети само вечер и сутрин)
+#работи и с V1 на компютъра (без тези таймери)
+#успешно са предадени през SIM900 484 * 2 bytes но не е желателно толкова големи пакети
+#приемат се през SIM само до 400 байта
+#вкарана е защита за ROUTE_TABLE_ENTRIES в V1 приемаше и големи пакети с MAK на лампи (защищаваше го PC то)
+#наченки на MODBUS за електромер
+
+#HOST_VERSION = 0x00010100UL
+HOST_VERSION = 0x00020000UL
 
 MCU = atxmega128a1
 
@@ -36,7 +44,7 @@ TARGET = TestHost
 
 # List C source files here. (C dependencies are automatically generated.)
 SRC = Main.c SerialLink.c JennicModule.c TunDevice.c sub.c
-SRC += clksys_driver.c eeprom_driver.c ebi_driver.c twi_master_driver.c CRD2_Uart.c GPRS_Uart.c FTDI_Uart.c hardware.c
+SRC += clksys_driver.c eeprom_driver.c ebi_driver.c twi_master_driver.c CRD2_Uart.c GPRS_Uart.c FTDI_Uart.c hardware.c MODBUS_Master.c
 #spi_driver.c
 
 # List Assembler source files here.
