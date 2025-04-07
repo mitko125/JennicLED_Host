@@ -3,13 +3,13 @@
 #include "usart.h"
 
 
-#include <defs.h>
+#include "hardware.h"
 
 
 /* \brief  Receive buffer size: 2,4,8,16,32,64,128 or 256 bytes. */
-#define USART_RX_BUFFER_SIZE 256
+#define USART_RX_BUFFER_SIZE 512
 /* \brief Transmit buffer size: 2,4,8,16,32,64,128 or 256 bytes */
-#define USART_TX_BUFFER_SIZE 256
+#define USART_TX_BUFFER_SIZE 512
 /* \brief Receive buffer mask. */
 #define USART_RX_BUFFER_MASK ( USART_RX_BUFFER_SIZE - 1 )
 /* \brief Transmit buffer mask. */
@@ -29,13 +29,13 @@ static volatile uint8_t RX[USART_RX_BUFFER_SIZE];
 /* \brief Transmit buffer. */
 static volatile uint8_t TX[USART_TX_BUFFER_SIZE];
 /* \brief Receive buffer head. */
-static volatile uint8_t RX_Head;
+static volatile uint16_t RX_Head;
 /* \brief Receive buffer tail. */
-static volatile uint8_t RX_Tail;
+static volatile uint16_t RX_Tail;
 /* \brief Transmit buffer head. */
-static volatile uint8_t TX_Head;
+static volatile uint16_t TX_Head;
 /* \brief Transmit buffer tail. */
-static volatile uint8_t TX_Tail;
+static volatile uint16_t TX_Tail;
 
 
 
@@ -80,8 +80,8 @@ int sim_serial_read(unsigned char *data){
 static bool USART_TXBuffer_FreeSpace(void)
 {
 	/* Make copies to make sure that volatile access is specified. */
-	uint8_t tempHead = (TX_Head + 1) & USART_TX_BUFFER_MASK;
-	uint8_t tempTail = TX_Tail;
+	uint16_t tempHead = (TX_Head + 1) & USART_TX_BUFFER_MASK;
+	uint16_t tempTail = TX_Tail;
 
 	/* There are data left in the buffer unless Head and Tail are equal. */
 	return (tempHead != tempTail);
@@ -89,7 +89,7 @@ static bool USART_TXBuffer_FreeSpace(void)
 
 void GPRS_put_char(uint8_t data){
 	
-	uint8_t tempTX_Head;
+	uint16_t tempTX_Head;
 
 	while( !USART_TXBuffer_FreeSpace());
 
@@ -102,7 +102,7 @@ void GPRS_put_char(uint8_t data){
 }
 
 int sim_serial_write(const unsigned char data){
-	uint8_t tempTX_Head;
+	uint16_t tempTX_Head;
 
 	while( !USART_TXBuffer_FreeSpace());
 
@@ -124,7 +124,7 @@ void GPRS_put_str(char *data){
  */
 ISR(GPRS_RX_vect)
 {
-	uint8_t tempRX_Head = (RX_Head + 1) & USART_RX_BUFFER_MASK;
+	uint16_t tempRX_Head = (RX_Head + 1) & USART_RX_BUFFER_MASK;
 
 	/* Check for overflow. */
 	uint8_t data = GPRS_uart.DATA;

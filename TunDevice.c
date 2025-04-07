@@ -7,7 +7,10 @@
 #include <sys/types.h>
 #include <errno.h>
 #include <time.h>
-
+#include <stdint.h>
+#include "windows_sub.h"
+#else	//WIN32
+#include "hardware.h"
 #endif	//WIN32
 
 
@@ -17,6 +20,7 @@
 
 #include "log.h"
 #include "def.h"
+#include "sub.h"
 
 #include "TunDevice.h"
 #include "JennicModule.h"
@@ -24,19 +28,31 @@
 #ifndef WIN32
 #include "avr_compiler.h"
 #include "GPRS_Uart.h"
-#include "defs.h"
+#include "hardware.h"
 #endif
 
 uint8_t key_a,key_b;
 
+#undef SIM_900
+
+#ifndef WIN32
 #define SIM_900
+#endif
 
-
+#define MAX_CLIENTS 7
+#ifdef WIN32
+SOCKET my_sock[MAX_CLIENTS];
+#endif //WIN32
+static volatile unsigned int butes_reciv = 0;
 static volatile int ipv6_len = 0;
-static unsigned char ipv6_buf[100];
+static unsigned char ipv6_buf[2048];
 char pin[5];
 
-void main_loop(void);
+
+uint8_t t_min_no_connect = 0;
+#define MAX_TIME_NO_CONNECT 6
+#define TIME_TEST_CONNECT (MAX_TIME_NO_CONNECT-1)
+
 
 #ifndef SIM_900
 
@@ -49,9 +65,10 @@ static volatile unsigned char thread_ok = 0;
         else {daemon_log(LOG_DEBUG,"No User on line\n");}
 // глобальная переменная - количество активных пользователей
 int nclients = 0;
+int last_clients = 0;
 
 // прототип функции, обслуживающий подключившихся пользователей
-int SexToClient(LPVOID client_socket);
+int SexToClient(int * client);
 
 
 int MyThread(void *p) {
@@ -102,8 +119,8 @@ int MyThread(void *p) {
 	}
 
 	// Шаг 4 - ожидание подключений
-	// размер очереди - 0x100
-	if (listen(mysocket, 0x100))
+	// размер очереди - MAX_CLIENTS
+	if (listen(mysocket, MAX_CLIENTS))
 	{
 		// Ошибка
 		daemon_log(LOG_ERR, "Error listen %d", WSAGetLastError());
@@ -127,6 +144,7 @@ int MyThread(void *p) {
 	while ((client_socket = accept(mysocket, (struct sockaddr *)&client_addr, \
 		&client_addr_size)))
 	{
+		my_sock[last_clients = nclients] = client_socket;
 		nclients++; // увеличиваем счетчик подключившихся клиентов
 
 					// пытаемся получить имя хоста
@@ -143,7 +161,7 @@ int MyThread(void *p) {
 			// но, поскольку никаких вызовов функций стандартной Си библиотеки
 			// поток не делает, можно обойтись и CreateThread
 
-		_beginthread(SexToClient, 0, &client_socket);
+		_beginthread(SexToClient, 0, &last_clients);
 	}
 	return 0;
 }
@@ -151,34 +169,18 @@ int MyThread(void *p) {
 
 // Эта функция создается в отдельном потоке
 // и обсуживает очередного подключившегося клиента независимо от остальных
-int SexToClient(LPVOID client_socket)
+int SexToClient(int * client)
 {
-	SOCKET my_sock;
-	my_sock = ((SOCKET *)client_socket)[0];
-	unsigned char buff[20 * 1024];
-#define sHELLO "SOCKET PODKLUCHEN\r\n"
-
-	// отправляем клиенту приветствие
-	//	send(my_sock, sHELLO, sizeof(sHELLO), 0);
+	int num_client = *client;
 
 	// цикл эхо-сервера: прием строки от клиента и возвращение ее клиенту
-	int bytes_recv;
-	while ((bytes_recv = recv(my_sock, &buff[0], sizeof(buff), 0)) && bytes_recv != SOCKET_ERROR) {
+	int bytes_r;
+	while ((bytes_r = recv(my_sock[num_client], &ipv6_buf[0], sizeof(ipv6_buf), 0)) && bytes_r != SOCKET_ERROR) {
 		//send(my_sock, &buff[0], bytes_recv, 0);
-		if (bytes_recv > HEADER_SIZE) {
-			for (int i = 0; i < bytes_recv; i++)
-				    printf("%02X", buff[i] & 0x000000FF);
-				printf("\n");
-			int len = buff[0];
-			len <<= 8;
-			len |= buff[1];
-			if ((len + HEADER_SIZE) == bytes_recv) {
-				if (buff[HEADER_SIZE] == IPv6_PACKET) {
-					memcpy(ipv6_buf, buff + HEADER_SIZE + 1, len - 1);
-					ipv6_len = len - 1;
-				}
-			}
-		}
+		ipv6_buf[bytes_r] = 0;
+		if (verbosity >= LOG_DEBUG)
+			daemon_log(LOG_DEBUG, "From client TCP/IP:%s", ipv6_buf);
+		butes_reciv = bytes_r;
 	}
 
 	// если мы здесь, то произошел выход из цикла по причине
@@ -187,8 +189,9 @@ int SexToClient(LPVOID client_socket)
 	daemon_log(LOG_DEBUG, "-disconnect\n"); 
 	PRINTNUSERS
 
-		// закрываем сокет
-		closesocket(my_sock);
+	// закрываем сокет
+	closesocket(my_sock[num_client]);
+	my_sock[num_client] = 0;
 	return 0;
 }
 #else	//SIM_900
@@ -370,10 +373,10 @@ static long time_sec;
 static uint8_t fl_read = 0;
 static int recived = 0;
 static int max_recived;
-static unsigned char buffer[500];
 static unsigned int to_reciv = 0;
+#define MAX_RECIV 200
+static unsigned char buffer[MAX_RECIV];
 static unsigned int client;
-static unsigned char buffer_to_send[100];
 static unsigned int to_send = 0;
 void SimRead(unsigned char *pBuf, int lenght) {
 	time_sec = (long)time(NULL);
@@ -382,10 +385,6 @@ void SimRead(unsigned char *pBuf, int lenght) {
 	max_recived = lenght;
 }
 
-uint16_t sim_errors = 0;
-uint8_t t_min_no_connect = 0;
-#define MAX_TIME_NO_CONNECT 6
-#define TIME_TEST_CONNECT (MAX_TIME_NO_CONNECT-1)
 static uint8_t fl_test_connect = 0;
 
 void On_off_SIM(void){
@@ -416,7 +415,7 @@ void LoopRead(void) {
 	if( t_min_no_connect >= MAX_TIME_NO_CONNECT ){
 		state = AT_test;
 		On_off_SIM();
-		sim_errors ++;
+		sRouterStatus.u16SimErrors = htons(ntohs(sRouterStatus.u16SimErrors) + 1);
 		return;
 	} 
 	
@@ -429,7 +428,7 @@ void LoopRead(void) {
 		if ((recived == 0) && (state < Opened)){
 			state = AT_test;
 			On_off_SIM();
-			sim_errors ++;
+			sRouterStatus.u16SimErrors = htons(ntohs(sRouterStatus.u16SimErrors) + 1);
 		}else if (recived) {
 			buffer[recived] = 0;
 			if (verbosity >= LOG_DEBUG)
@@ -479,8 +478,10 @@ void LoopRead(void) {
 					if (memcmp(buffer, "\r\n+CPIN: READY\r\n\r\nOK\r\n", recived) == 0) {
 						state = CIPMUX;
 					}
-				}else 
+				}else{ 
 					state = BAD_PIN;
+					daemon_log(LOG_CRIT,"Error PIN test %s",buffer);
+				}
 				break;
 			}
 			case PIN_set:
@@ -490,8 +491,10 @@ void LoopRead(void) {
 						state = PIN_test;
 						break;
 					}
-				}else 
+				}else{
 					state = BAD_PIN;
+					daemon_log(LOG_CRIT,"Error SET PIN %s",buffer);
+				}
 				break;
 			}
 			case CIPMUX:
@@ -524,6 +527,7 @@ void LoopRead(void) {
 			case CSQ:
 			{
 				if (recived > 10) {
+					sRouterStatus.u8CSQ = atoi((char*)(buffer + 7));
 					{
 						state = CSTT;
 					}
@@ -566,81 +570,33 @@ void LoopRead(void) {
 	}	else {
 		uint8_t u8Data;
 		while (sim_serial_read(&u8Data)) {
-			buffer[recived] = u8Data;
+			if( to_reciv )
+				ipv6_buf[recived] = u8Data;
+			if( recived < MAX_RECIV )
+				buffer[recived] = u8Data;
 			recived++;
 			if (state == Opened) {
 				if (recived && (recived == to_reciv)) {
-					unsigned char b[100];
-					buffer[recived] = 0;
+					ipv6_buf[recived] = 0;
 					if (verbosity >= LOG_DEBUG)
-						daemon_log(LOG_DEBUG, "From client SIM:%s", buffer);
-					int i;
-					for (i = 0;i < (to_reciv >> 1); i++) {
-						unsigned char data;
-						if (buffer[i << 1] >= 'A')
-							data = buffer[i << 1] - 'A' + 10;
-						else
-							data = buffer[i << 1] - '0';
-						data <<= 4;
-						if (buffer[(i << 1)+1] >= 'A')
-							data |= (buffer[(i << 1)+1] - 'A' + 10)&0x0F;
-						else
-							data |= (buffer[(i << 1)+1] - '0')&0x0F;
-						b[i] = data;
-					}
-					int len = b[0];
-					len <<= 8;
-					len |= b[1];
-					if ((len + HEADER_SIZE) == (to_reciv >> 1)) {
-						switch(b[HEADER_SIZE]){
-						case COMMAND_SET_HOST_DATA:
-							break;
-						case IPv6_PACKET:
-							memcpy(ipv6_buf, b + HEADER_SIZE + 1, len - 1);
-							ipv6_len = len - 1;
-							break;
-						case COMMAND_ON:
-							OnLamp();
-							break;
-						case COMMAND_OFF:
-							OffLamp();
-							break;
-						case COMMAND_TIME_ON_OFF:
-							memcpy(psTimerOn,b + HEADER_SIZE + 1,sizeof(tsTimerHourMinute));
-							memcpy(psTimerOff,b + HEADER_SIZE + 1 + sizeof(tsTimerHourMinute) ,sizeof(tsTimerHourMinute));
-							break;
-						case GET_STATUS_SIM_ERR:
-							buffer_to_send[0] = 0;
-							buffer_to_send[1] = 5;
-							buffer_to_send[2] = VERSION;
-							buffer_to_send[3] = SIM_ERRORS;
-							buffer_to_send[4] = sim_errors>>8;
-							buffer_to_send[5] = sim_errors;
-							buffer_to_send[6] = (*on_counters)>>8;
-							buffer_to_send[7] = *on_counters;
-							to_send = buffer_to_send[1] + 3;
-							sprintf((char*)b,"AT+CIPSEND=%d\r\n",client);
-							SimWrite((unsigned char*)b);
-							break;
-						}
-					}else{
-						daemon_log(LOG_DEBUG, "BAD lenght from client:%d %d",len + HEADER_SIZE, to_reciv>>1);
-					}
+						daemon_log(LOG_DEBUG, "From client SIM:%s", ipv6_buf);
+					butes_reciv = 	to_reciv;
+	
 					to_reciv = 0;
 					recived = 0;
 				}
 				switch (u8Data) {
 				case '>':
 					if( to_send ){
-						int i;
+						unsigned int i;
 						uint8_t data;
 						for( i = 0 ; i< to_send ; i++ ){
-							data = buffer_to_send[i];
+							data = ipv6_buf[i];
 							data >>= 4; data &= 0xF;
 							if( data < 10 ) data += '0';	else	data += 'A' -10;
 							sim_serial_write(data);
 							
-							data = buffer_to_send[i];
+							data = ipv6_buf[i];
 							data &= 0xF;
 							if( data < 10 ) data += '0';	else	data += 'A' -10;
 							sim_serial_write(data);
@@ -670,11 +626,11 @@ void LoopRead(void) {
 					}else if( (recived > 11) && (memcmp(buffer, "+PDP: DEACT", 11) == 0 )){
 						state = AT_test;
 						On_off_SIM();
-						sim_errors ++;
+						sRouterStatus.u16SimErrors = htons(ntohs(sRouterStatus.u16SimErrors) + 1);
 					}else if( (recived > 13) && (memcmp(buffer, "+CIPSERVER: 0", 13) == 0 )){
 						state = AT_test;
 						On_off_SIM();
-						sim_errors ++;
+						sRouterStatus.u16SimErrors = htons(ntohs(sRouterStatus.u16SimErrors) + 1);
 					}else if( (recived > 13) && (memcmp(buffer, "+CIPSERVER: 1", 13) == 0 )){
 						t_min_no_connect = 0;
 						fl_test_connect = 0;
@@ -750,7 +706,7 @@ void SimLoop(void) {
 			int old_ver = verbosity;
 			verbosity = LOG_WARNING;
 			#ifdef WIN32
-			sprintf_s(text,sizeof(text), "AT+CPIN=\"%s\"\r\n", PIN);
+			sprintf_s(text,sizeof(text), "AT+CPIN=\"%s\"\r\n", pin);
 			#else
 			sprintf(text, "AT+CPIN=\"%s\"\r\n", pin);
 			#endif
@@ -839,13 +795,248 @@ teTunStatus eTunDeviceOpen(int port, uint32_t baud)
     return E_TUN_OK;
 }
 
+static void SendPacage(int len){
+#ifdef SIM_900
+	to_send = len;
+#ifdef WIN32
+	sprintf_s((char*)buffer,sizeof(buffer), "AT+CIPSEND=%d\r\n", client);
+#else //WIN32
+	sprintf((char*)buffer,"AT+CIPSEND=%d\r\n",client);
+#endif	//WIN32
+	SimWrite((unsigned char*)buffer);
+#else //SIM_900
+#ifdef WIN32
+	if (my_sock[last_clients]) {
+		unsigned char buff[2048 * 2], data;
+		int i;
+		for (i = 0; i < len; i++) {
+			data = ipv6_buf[i];
+			data >>= 4; data &= 0xF;
+			if (data < 10) data += '0';	else	data += 'A' - 10;
+			buff[(i << 1)] = data;
+
+			data = ipv6_buf[i];
+			data &= 0xF;
+			if (data < 10) data += '0';	else	data += 'A' - 10;
+			buff[(i << 1) + 1] = data;
+		}
+		int sended = 0;
+		do {
+			sended = send(my_sock[last_clients], buff + sended, (len << 1) - sended, 0);
+			if (sended <= 0) {
+				daemon_log(LOG_ERR, "Error send socket %d", WSAGetLastError());
+				return;
+			}
+		} while (sended != (len << 1));
+		daemon_log(LOG_DEBUG, "To client %d sended %d * 2 bytes", last_clients, len);
+	}
+#endif //WIN32
+#endif //SIM_900
+}
 
 teTunStatus eTunDeviceReadPacket(void)
 {
-//    unsigned char buf[2048];
-    int len;
+	int len;
+
+	if( butes_reciv ){
+
+		unsigned int i;
+		for (i = 0;i < (butes_reciv >> 1); i++) {
+			unsigned char data;
+			if (ipv6_buf[i << 1] >= 'A')
+				data = ipv6_buf[i << 1] - 'A' + 10;
+			else
+				data = ipv6_buf[i << 1] - '0';
+			data <<= 4;
+			if (ipv6_buf[(i << 1)+1] >= 'A')
+				data |= (ipv6_buf[(i << 1)+1] - 'A' + 10)&0x0F;
+			else
+				data |= (ipv6_buf[(i << 1)+1] - '0')&0x0F;
+			ipv6_buf[i] = data;
+		}
+		
+		len = ipv6_buf[0];
+		len <<= 8;
+		len |= ipv6_buf[1];
+		if ((len + HEADER_SIZE) == (butes_reciv >> 1)) {
+			switch(ipv6_buf[HEADER_SIZE]){
+			case SET_WORK_HOURS:
+				{
+					tsSetWorkHours * psSetWorkHours = (tsSetWorkHours*)(ipv6_buf + HEADER_SIZE + 1);
+					for (i = 0;i < u16_LampsInTable;i++) {
+						if (memcmp(&((psLampTable + i)->sLampStatus.sMAC_Address.MAC[0]), psSetWorkHours->sMAC_Address.MAC, sizeof(tsMAC_Address)) == 0) {
+							(psLampTable + i)->sLampStatus.u32WorkHours = psSetWorkHours->u32WorkHours;
+							break;
+						}
+					}
+				}
+				break;
+			case SEND_LAMPS_MAC_TABLE:
+				{
+					uint16_t u16FirstTableEntry;
+					uint16_t u16EntryCount;
+					int i;
+
+					tsSendTable * psSendLamsMAC = (tsSendTable*)(ipv6_buf + HEADER_SIZE + 1);
+					tsMAC_Address * psMAC_Address = (tsMAC_Address*)(psSendLamsMAC + 1);
+
+					u16_LampsInTable = 0;
+					u16_LampsConnected = 0;
+
+					u16FirstTableEntry = ntohs(psSendLamsMAC->u16FirstTableEntry);
+					u16EntryCount = ntohs(psSendLamsMAC->u16EntryCount);
+
+					for (i = 0; i < u16EntryCount;i++) {
+						memcpy(&((psLampTable + u16FirstTableEntry + i)->sLampStatus.sMAC_Address.MAC[0]), psMAC_Address, sizeof(tsMAC_Address));
+						psMAC_Address++;
+					}
+					if (psSendLamsMAC->u8FlagEnd)
+						u16_LampsInTable = u16FirstTableEntry + u16EntryCount;
+				}
+				break;
+			case GET_LAMPS_STATUS:
+				{
+					uint16_t u16FirstTableEntry;
+					uint16_t u16EntryCount;
+					int i,cou=0;
+
+					tsSendTable * psSendLamsStatus = (tsSendTable*)(ipv6_buf + HEADER_SIZE + 1);
+					tsLampStatus * psLampStatus = (tsLampStatus*)(psSendLamsStatus + 1);
+
+					u16FirstTableEntry = ntohs(psSendLamsStatus->u16FirstTableEntry);
+					u16EntryCount = ntohs(psSendLamsStatus->u16EntryCount);
+
+					for (i = u16FirstTableEntry; (i < u16_LampsInTable) && (u16EntryCount); i++) {
+						u16EntryCount--;
+						cou++;
+						memcpy(psLampStatus, &((psLampTable + i)->sLampStatus), sizeof(tsLampStatus));
+						psLampStatus++;
+					}
+					psSendLamsStatus->u16FirstTableEntry = htons(u16FirstTableEntry);
+					psSendLamsStatus->u16EntryCount = htons(cou);
+					if (i >= u16_LampsInTable)
+						psSendLamsStatus->u8FlagEnd = 1;
+
+					ipv6_buf[0] = (sizeof(tsSendTable) + (sizeof(tsLampStatus)*cou) + 1) >> 8;
+					ipv6_buf[1] = (sizeof(tsSendTable) + (sizeof(tsLampStatus)*cou) + 1) & 0xFF;
+					ipv6_buf[2] = VERSION;
+					ipv6_buf[3] = SEND_LAMPS_STATUS;
+					SendPacage(HEADER_SIZE + 1 + sizeof(tsSendTable) + (sizeof(tsLampStatus)*cou));
+				}
+				break;
+			case COMMAND_GET_REJECT:
+				ipv6_buf[0] = (sizeof(sRejectTable) + 1) >> 8;
+				ipv6_buf[1] = (sizeof(sRejectTable) + 1) & 0xFF;
+				ipv6_buf[2] = VERSION;
+				ipv6_buf[3] = SEND_REJECT_TABLE;
+				memcpy(ipv6_buf + HEADER_SIZE + 1, (unsigned char*)&sRejectTable, sizeof(sRejectTable));
+				SendPacage(HEADER_SIZE + 1 + sizeof(sRejectTable));
+				break;
+			case COMMAND_GET_TIMERS:
+				memcpy(&(psTimers->sDateTime), date_time, sizeof(tsDateTime));
+				make_crc((unsigned char*)psTimers, sizeof(tsTimers));
+				ipv6_buf[0] = (sizeof(tsTimers) + 1) >> 8;
+				ipv6_buf[1] = (sizeof(tsTimers) + 1) & 0xFF;
+				ipv6_buf[2] = VERSION;
+				ipv6_buf[3] = COMMAND_SET_TIMERS;
+				memcpy(ipv6_buf + HEADER_SIZE + 1, (unsigned char*)psTimers, sizeof(tsTimers));
+				SendPacage(HEADER_SIZE + 1 + sizeof(tsTimers));
+				break;
+			case COMMAND_SET_TIMERS:
+				memcpy(psTimers, ipv6_buf + HEADER_SIZE + 1, sizeof(tsTimers));
+				make_crc((unsigned char*)psTimers, sizeof(tsTimers));
+				SetDateTime();
+				get_time();
+				ipv6_buf[0] = (6 + 1) >> 8;
+				ipv6_buf[1] = (6 + 1) & 0xFF;
+				ipv6_buf[2] = VERSION;
+				ipv6_buf[3] = SEND_DATE_TIME;
+				memcpy(ipv6_buf + HEADER_SIZE + 1,date_time, 6);
+				SendPacage(HEADER_SIZE + 1 + 6);
+				break;
+			case COMMAND_MAC_ADDRESS:
+				ipv6_buf[0] = (8 + 1) >> 8;
+				ipv6_buf[1] = (8 + 1) & 0xFF;
+				ipv6_buf[2] = VERSION;
+				ipv6_buf[3] = COMMAND_MAC_ADDRESS;
+				memcpy(ipv6_buf + HEADER_SIZE + 1, (unsigned char*)(&sRouterAddress) + 8 , 8);
+
+				ipv6_buf[4] ^= 0x02;
+
+				SendPacage(HEADER_SIZE + 1 + 8);
+				break;
+			case COMMAND_GET_HOST_DATA:
+				sModuleGetConfig.eRadioFrontEnd = psModuleSetConfig->eRadioFrontEnd;
+				sModuleGetConfig.u8JenNetProfile = psModuleSetConfig->u8JenNetProfile;
+				sModuleGetConfig.iAntennaDiversity = psModuleSetConfig->iAntennaDiversity;
+				sModuleGetConfig.u8RadiusOff = psModuleSetConfig->u8RadiusOff;
+				sModuleGetConfig.u16LampsInTable = htons(u16_LampsInTable);
+				sModuleGetConfig.u16LampsConnected = htons(u16_LampsConnected);
+				ipv6_buf[0] = (sizeof(tsConfigBorderRuter)+1) >> 8;
+				ipv6_buf[1] = (sizeof(tsConfigBorderRuter)+1) & 0xFF;
+				ipv6_buf[2] = VERSION;
+				ipv6_buf[3] = COMMAND_SET_HOST_DATA;
+				memcpy(ipv6_buf + HEADER_SIZE + 1, (unsigned char*)&sModuleGetConfig, sizeof(tsConfigBorderRuter));
+				SendPacage( HEADER_SIZE + 1 + sizeof(tsConfigBorderRuter) );
+				break;
+			case COMMAND_SET_HOST_DATA:
+				memcpy(&sModuleSetConfig, ipv6_buf + HEADER_SIZE + 1, sizeof(tsConfigBorderRuter));
+				make_crc((unsigned char*)psModuleSetConfig, sizeof(tsConfigBorderRuter));
+				eJennicModuleStart();
+				break;
+			case IPv6_PACKET:
+				//memcpy(ipv6_buf, b + HEADER_SIZE + 1, len - 1);
+				ipv6_len = len - 1;
+				break;
+			case COMMAND_ON:
+				OnLamp();
+				break;
+			case COMMAND_OFF:
+				OffLamp();
+				break;
+			case COMMAND_CLEAR_RAM:
+				ClearRam();
+				eJennicModuleStart();
+				break;
+			case COMMAND_TIME_ON_OFF:
+				memcpy(&(psTimers->sTimerOn),ipv6_buf + HEADER_SIZE + 1,sizeof(tsTimerHourMinute));
+				memcpy(&(psTimers->sTimerOff),ipv6_buf + HEADER_SIZE + 1 + sizeof(tsTimerHourMinute) ,sizeof(tsTimerHourMinute));
+				break;
+			case GET_STATUS_ROUTER:
+				ipv6_buf[0] = (sizeof(tsRouterStatus) + 1) >> 8;
+				ipv6_buf[1] = (sizeof(tsRouterStatus) + 1) & 0xFF;
+				ipv6_buf[2] = VERSION;
+				ipv6_buf[3] = SEND_STATUS_ROUTER;
+				sRouterStatus.u8JenniceModuleState = eModuleState;
+				sRouterStatus.u8Inputs = 0;
+				sRouterStatus.u8Outputs = 0;
+				#ifndef WIN32
+				if( (PORT_INPUTS.IN & INP1) == 0) sRouterStatus.u8Inputs |= 0x01;
+				if( (PORT_INPUTS.IN & INP2) == 0) sRouterStatus.u8Inputs |= 0x02;
+				if( (PORT_INPUTS.IN & INP3) == 0) sRouterStatus.u8Inputs |= 0x04;
+				if( (PORT_INPUTS.IN & INP4) == 0) sRouterStatus.u8Inputs |= 0x08;
+				if( PORT_RELAY.IN & RELAY1 ) sRouterStatus.u8Outputs |= 0x01;
+				if( PORT_RELAY.IN & RELAY2 ) sRouterStatus.u8Outputs |= 0x02;
+				if( PORT_RELAY.IN & RELAY3 ) sRouterStatus.u8Outputs |= 0x04;
+				if( PORT_RELAY.IN & RELAY4 ) sRouterStatus.u8Outputs |= 0x08;
+				#endif	//WIN32
+				memcpy(ipv6_buf + HEADER_SIZE + 1, (unsigned char*)&sRouterStatus, sizeof(tsRouterStatus));
+				SendPacage(HEADER_SIZE + 1 + sizeof(tsRouterStatus));
+				break;
+			}
+		}else{
+			daemon_log(LOG_DEBUG, "BAD lenght from client:%d %d",len + HEADER_SIZE, butes_reciv>>1);
+		}
+		butes_reciv = 0;
+	}
+					
+					
+					
+					
+					
+  
 	len = 0;//read(tun_fd, buf, sizeof(buf));
-    if (ipv6_len > 0)
+   if (ipv6_len > 0)
     {	
 		len = ipv6_len;
 		ipv6_len = 0;
@@ -857,7 +1048,7 @@ teTunStatus eTunDeviceReadPacket(void)
         //printf("\n");
         
         // Send data to Jennic chip
-        if (eJennicModuleWriteIPv6(len, ipv6_buf) != E_MODULE_OK)
+        if (eJennicModuleWriteIPv6(len, ipv6_buf+HEADER_SIZE+1) != E_MODULE_OK)
         {
             daemon_log(LOG_ERR, "Error writing packet to module");
             return E_TUN_ERROR;
@@ -869,14 +1060,15 @@ teTunStatus eTunDeviceReadPacket(void)
 
 teTunStatus eTunDeviceWritePacket(uint32_t u32Length, uint8_t *pu8Data)
 {
-    int len;
+	ipv6_buf[0] = (u32Length + 1) >> 8;
+	ipv6_buf[1] = (u32Length + 1) & 0xFF;
+	ipv6_buf[2] = VERSION;
+	ipv6_buf[3] = IPv6_PACKET;
+	memcpy( ipv6_buf + HEADER_SIZE + 1, pu8Data, u32Length);
+	SendPacage(u32Length + HEADER_SIZE + 1);
 
-	len = 0;//write(tun_fd, pu8Data, u32Length);
-    if (len == u32Length)
-    {
-        //printf("Data to TUN: %d bytes (%d)\n", len, psMsg->u16Length);
-        return E_TUN_OK;
-    }
+	return E_TUN_OK;
+    
     return E_TUN_ERROR;
 }
 

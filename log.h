@@ -7,6 +7,11 @@
 #define LOG_INFO	6
 #define LOG_DEBUG	7
 
+#ifdef WIN32
+#define printf_P printf
+#define PSTR(ARG) ARG
+#endif
+
 /* The log macros filter out log messages that have a higher log level than that set in LOG_LEVEL */
 #ifdef UART_DEBUG
 /* When logging via UART, we don't print the level */
@@ -16,7 +21,7 @@
 /* When logging via Serial link to host syslog, send the log level as a char integer at the start of the message */
 #define QUOTE(A) #A
 #define CHAR(A) QUOTE(\x##A)
-#define daemon_log( LEVEL, FORMAT,...) if (verbosity >= LEVEL) {putchar(LEVEL+'0');printf( FORMAT, ##__VA_ARGS__); putchar('\n');}
+#define daemon_log( LEVEL, FORMAT,...) if (verbosity >= LEVEL) {putchar(LEVEL+'0');printf_P( PSTR(FORMAT), ##__VA_ARGS__); putchar('\n');}
 #endif
 
 extern int verbosity;

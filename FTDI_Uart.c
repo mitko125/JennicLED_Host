@@ -3,7 +3,7 @@
 #include "usart.h"
 
 
-#include <defs.h>
+#include "hardware.h"
 
 
 /* \brief  Receive buffer size: 2,4,8,16,32,64,128 or 256 bytes. */

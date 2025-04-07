@@ -2,6 +2,16 @@
 #warning: #warning "Compiler optimizations disabled; functions from <util/delay.h> won't work as designed" не е важен
 #и в момента е избегнат с //#include <util/delay.h> в avr_compiler.h
 
+#”правление на улично осветление
+#инитира бордер от бордер-ротер на Jennic
+#с интернет работи чрез SIM900 по редоставена от виваком мрежа с статични IP
+#а с уличните осветители чрез рутер на Jennic V1.8.2
+#командите са от teCommandsPC
+
+#V1.0.0 първа работна верси€ монтирана на 46 хоста
+
+HOST_VERSION = 0x00010000UL
+
 MCU = atxmega128a1
 
 
@@ -21,8 +31,8 @@ TARGET = TestHost
 
 
 # List C source files here. (C dependencies are automatically generated.)
-SRC = Main.c SerialLink.c JennicModule.c TunDevice.c
-SRC += clksys_driver.c eeprom_driver.c ebi_driver.c twi_master_driver.c CRD2_Uart.c GPRS_Uart.c FTDI_Uart.c
+SRC = Main.c SerialLink.c JennicModule.c TunDevice.c sub.c
+SRC += clksys_driver.c eeprom_driver.c ebi_driver.c twi_master_driver.c CRD2_Uart.c GPRS_Uart.c FTDI_Uart.c hardware.c
 #spi_driver.c
 
 # List Assembler source files here.
@@ -64,7 +74,8 @@ CSTANDARD = -std=gnu99
 
 
 # Place -D or -U options here
-CDEFS = -DF_CPU=$(F_CPU)UL
+CDEFS = -DF_CPU=$(F_CPU)UL -DHOST_VERSION=$(HOST_VERSION)
+
 
 
 # Place -I options here

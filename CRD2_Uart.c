@@ -4,14 +4,13 @@
 #include "usart.h"
 
 
-#include <defs.h>
+#include "hardware.h"
 
 #include "log.h"
 
 #define DEBUG 0
 
 int verbosity;
-uint32_t time_1s = 0;
 
 /* \brief  Receive buffer size: 2,4,8,16,32,64,128 or 256 bytes. */
 #define USART_RX_BUFFER_SIZE 256

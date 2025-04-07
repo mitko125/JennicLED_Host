@@ -4,15 +4,14 @@
 #include <stdint.h>
 //#include <netinet/in.h>
 
-#define PIN_STR "5357"
+#define PIN_STR "9971"
+//#define PIN_STR "5357"
 //#define PIN_STR "4095"
 
 extern char pin[];
 
 extern uint8_t key_a,key_b;
 extern uint8_t t_min_no_connect;
-void OnLamp(void);
-void OffLamp(void);
 
 #if defined __cplusplus
 extern "C" {

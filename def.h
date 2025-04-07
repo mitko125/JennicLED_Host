@@ -10,6 +10,9 @@ struct in6_addr {
 #define false 0
 #endif
 
+#define INT_BCD(A) (((A/10)<<4)|(A%10))
+
+#define SIZE_RAM 0x8000
 
 #ifndef WIN32
 
@@ -43,18 +46,6 @@ static inline uint32_t ntohl(uint32_t x) {
   return htonl(x);
 }
 
-/*
-#if __BYTE_ORDER == __BIG_ENDIAN
-#define htons(a)	(a)
-#define htonl(a)	(a)
-#define ntohs(a)	(a)
-#define ntohl(a)	(a)
-#else
-#error Little endian not implemented
-#endif /// BIG ENDIAN 
-*/
-
-
 typedef uint32_t time_t;
 #define difftime(A,B) (A-B)
 extern uint32_t time_1s;
@@ -70,3 +61,226 @@ extern uint32_t time_1s;
 #ifndef INET6_ADDRSTRLEN
 #define INET6_ADDRSTRLEN 46
 #endif
+
+
+
+
+/** Enumerated type of statuses */
+typedef enum
+{
+	E_MODULE_OK,
+	E_MODULE_ERROR,
+	E_MODULE_COMMS_FAILED,
+} teModuleStatus;
+
+/** Enumerated type of allowable certification regions */
+typedef enum
+{
+	E_REGION_EUROPE,
+	E_REGION_USA,
+	E_REGION_JAPAN,
+
+	E_REGION_MAX
+} teRegion;
+
+
+/** Enumerated type of allowable channels */
+typedef enum
+{
+	E_CHANNEL_AUTOMATIC = 0,
+	E_CHANNEL_MINIMUM = 11,
+	E_CHANNEL_MAXIMUM = 26
+} teChannel;
+
+
+/** Enumerated type of supported authorisation schemes */
+typedef enum
+{
+	E_AUTH_SCHEME_NONE,
+	E_AUTH_SCHEME_RADIUS_PAP,
+
+	E_AUTH_SCHEME_DUMMY = 2147483647,	/**< Force this emumeration to be 4 bytes as sent by the host. */
+} teAuthScheme;
+
+
+/** Per authorisation scheme union of required configuration data */
+typedef union
+{
+	struct
+	{
+		struct in6_addr sAuthServerIP;
+	} sRadiusPAP;
+} tuAuthSchemeData;
+
+
+/** Enumerated type of supported radio front ends */
+#ifdef WIN32
+typedef enum
+{
+	E_FRONTEND_STANDARD_POWER,          /**< No frontend - just a standard power device */
+	E_FRONTEND_HIGH_POWER,              /**< High power module - enable PA and LNA */
+	E_FRONTEND_ETSI,                    /**< Enable ETSI compliant mode */
+}teRadioFrontEnd;
+#else //WIN32
+typedef enum
+{
+	E_FRONTEND_STANDARD_POWER,          /**< No frontend - just a standard power device */
+	E_FRONTEND_HIGH_POWER,              /**< High power module - enable PA and LNA */
+	E_FRONTEND_ETSI,                    /**< Enable ETSI compliant mode */
+} __attribute__((__packed__)) teRadioFrontEnd;
+#endif //WIN32
+
+/** Structure definition to configure the operating parameters of the network
+*  This verison of the structure is used for the 1.1.X series border routers
+*/
+PACKED(
+	typedef struct
+{
+	uint8_t     u8Region;
+	uint8_t     u8Channel;
+	uint16_t    u16PanID;
+	uint32_t    u32NetworkID;
+	uint32_t    u64NetworkPrefixMSB;
+	uint32_t    u64NetworkPrefixLSB;
+})tsModule_ConfigV11;
+
+/** Structure definition to configure the security parameters of the network */
+PACKED(
+	typedef struct
+{
+	struct in6_addr  sKey;                      /**< Store key like an IPv6 address. That gets us round the endianness issues */
+
+	teAuthScheme eAuthScheme;
+	tuAuthSchemeData uAuthSchemeData;
+})tsSecurityConfig;
+
+PACKED(
+	typedef struct
+{
+	tsModule_ConfigV11	sModuleConfigV11;
+	tsSecurityConfig	sSecurityConfig;
+	uint8_t				eRadioFrontEnd;
+	uint8_t				u8JenNetProfile;
+	uint8_t			  iAntennaDiversity;
+	uint8_t			  u8RadiusOff;
+	uint16_t			u16LampsInTable;
+	uint16_t			u16LampsConnected;
+})tsConfigBorderRuter;
+
+PACKED(
+	typedef struct
+{
+	uint8_t     u8Hour;
+	uint8_t     u8Minute;
+})tsTimerHourMinute;
+
+PACKED(
+typedef struct
+{
+	tsTimerHourMinute sTimerOn;
+	tsTimerHourMinute sTimerOff;
+	uint8_t     u8Lights;
+} )tsGrourTimer;
+
+PACKED(
+typedef struct
+{
+	unsigned char date_time[6];
+}) tsDateTime;
+
+#define MAX_GROUP_TIMERS 16
+
+PACKED(
+	typedef struct
+{
+	tsDateTime sDateTime;
+	tsTimerHourMinute sTimerOn;
+	tsTimerHourMinute sTimerOff;
+	tsGrourTimer sGroupTimer[MAX_GROUP_TIMERS];
+})tsTimers;
+
+PACKED(
+	typedef struct
+{
+	uint8_t MAC[8];
+})tsMAC_Address;
+
+#define MAX_ACCESS_REJECT_TABLE 16
+PACKED(
+	typedef struct
+{
+	tsMAC_Address sReject[MAX_ACCESS_REJECT_TABLE];
+})tsMAC_Reject;
+
+PACKED(
+	typedef struct
+{
+	tsMAC_Address	sMAC_Address;
+	tsDateTime	sLastContacts;
+	uint32_t	u32WorkHours;
+})tsLampStatus;
+
+PACKED(
+	typedef struct
+{
+	tsLampStatus	sLampStatus;
+	uint32_t u32Minutes;
+	uint32_t u32OldMinutes;
+	uint8_t u8FlSee;
+})tsLamp;
+
+PACKED(
+typedef struct
+{
+	uint16_t u16FirstTableEntry;
+	uint16_t u16EntryCount;
+	uint8_t u8FlagEnd;
+})tsSendTable;
+
+#define ROUTE_TABLE_ENTRIES		300
+#define MAX_SEND_MAC			20
+#define MAX_SEND_LAMP_STATUS	10				
+
+PACKED(
+	typedef struct
+{
+	uint16_t u16SimErrors;
+	uint16_t u16OnCounter;
+	tsDateTime sDateTimeClearRAM;
+	tsDateTime sDateTimeOn;
+	tsDateTime sDateTimeOff;
+	tsDateTime sLaseDateTime;
+	uint8_t u8CSQ;
+	uint8_t u8JenniceModuleState;
+	uint32_t u32HostVersion;
+	uint32_t u32JennicDeviceVersion;
+	uint8_t u8Inputs;
+	uint8_t u8Outputs;
+})tsRouterStatus;
+
+PACKED(
+	typedef struct
+{
+	tsMAC_Address	sMAC_Address;
+	uint32_t	u32WorkHours;
+})tsSetWorkHours;
+
+#define OFFSET_psModuleSetConfig 0
+#define psModuleSetConfig ((tsConfigBorderRuter *)(p_E_RAM+OFFSET_psModuleSetConfig))
+#define sModuleSetConfig (*psModuleSetConfig)
+
+#define OFFSET_psTimers (OFFSET_psModuleSetConfig + sizeof(tsConfigBorderRuter) + 1 )	// + 1	crc psModuleSetConfig
+#define psTimers ((tsTimers*)(p_E_RAM+OFFSET_psTimers))
+
+#define OFFSET_u16LampsInTable (OFFSET_psTimers + sizeof(tsTimers) + 1 )	// + 1	crc psTimers
+#define u16_LampsInTable (*((uint16_t*)(p_E_RAM+OFFSET_u16LampsInTable)))
+
+#define OFFSET_u16LampsConnected (OFFSET_u16LampsInTable + sizeof(uint16_t))
+#define u16_LampsConnected (*((uint16_t*)(p_E_RAM+OFFSET_u16LampsConnected)))
+
+#define OFFSET_psLampTable (OFFSET_u16LampsConnected + sizeof(uint16_t))
+#define psLampTable ((tsLamp*)(p_E_RAM+OFFSET_psLampTable))
+
+#define OFFSET_sRouterStatus (OFFSET_psLampTable + (sizeof(tsLamp)*ROUTE_TABLE_ENTRIES))
+#define sRouterStatus (*((tsRouterStatus*)(p_E_RAM+OFFSET_sRouterStatus)))
+

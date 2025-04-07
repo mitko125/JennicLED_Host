@@ -51,19 +51,22 @@
 #include <errno.h>
 #include <time.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include "windows_sub.h"
 #else	//WIN32
 #include "avr_compiler.h"
-#include "defs.h"
+#include "hardware.h"
 #endif	//WIN32
 
 #include "log.h"
 #include "def.h"
+#include "sub.h"
 
 #include "JennicModule.h"
 #include "TunDevice.h"
 #include "SerialLink.h"
 
-#define PRINT_SECURITY false //true
+#define PRINT_SECURITY false
 
 #define JENNIC_VERSION_MAJOR(a) (a << 16)
 #define JENNIC_VERSION_MINOR(a) (a << 8)
@@ -82,7 +85,7 @@ static struct
     unsigned    uSupportsPing           : 1;    /**< Node supports the ping message */
 } sFlags;
 
-static enum
+enum
 {
     E_STATE_IDLE,
     E_STATE_DETERMINE_VERSION,
@@ -95,31 +98,52 @@ static enum
     E_STATE_DETERMINE_ADDRESS,
     E_STATE_ACTIVITY_LED,
     E_STATE_RUNNING,
-} eModuleState;
+}JeModuleState;
 
+
+
+uint8_t eModuleState;
+
+#ifdef WIN32
 /** RADIUS Packet codes */
 typedef enum
 {
-//#pragma pack(push, 1)
+#pragma pack(push, 1)
 	E_RADIUS_ACCESS_REQUEST = 1,
 	E_RADIUS_ACCESS_ACCEPT = 2,
 	E_RADIUS_ACCESS_REJECT = 3,
-//#pragma pack(pop)
-} __attribute__((__packed__))
-teRADIUS_Packet_Code;
-
+#pragma pack(pop)
+}teRADIUS_Packet_Code;
 
 /** RADIUS Attribute-Value pair types */
 typedef enum
 {
-//#pragma pack(push, 1)
+#pragma pack(push, 1)
 	E_RADIUS_USER_NAME = 1,
 	E_RADIUS_USER_PASSWORD = 2,
 	E_RADIUS_VENDOR_SPECIFIC = 26,
 	E_RADIUS_802154_COMMISIONING_KEY = 100,
-//#pragma pack(pop)
-} __attribute__((__packed__))
-teRADIUS_AVP_Type;
+#pragma pack(pop)
+}teRADIUS_AVP_Type;
+#else //WIN32
+/** RADIUS Packet codes */
+typedef enum
+{
+	E_RADIUS_ACCESS_REQUEST = 1,
+	E_RADIUS_ACCESS_ACCEPT = 2,
+	E_RADIUS_ACCESS_REJECT = 3,
+} __attribute__((__packed__)) teRADIUS_Packet_Code;
+
+ /** RADIUS Attribute-Value pair types */
+typedef enum
+{
+	E_RADIUS_USER_NAME = 1,
+	E_RADIUS_USER_PASSWORD = 2,
+	E_RADIUS_VENDOR_SPECIFIC = 26,
+	E_RADIUS_802154_COMMISIONING_KEY = 100,
+} __attribute__((__packed__))teRADIUS_AVP_Type;
+#endif //WIN32
+
 #define IANA_VENDOR_ID_NXP 28137L
 
 /** Enumerated type of module modes */
@@ -140,24 +164,15 @@ typedef enum
 
 teActivityLED    eActivityLED = E_ACTIVITY_LED_NONE;
 
-tsConfigBorderRuter sModuleSetConfig;
+//tsConfigBorderRuter sModuleSetConfig;
 tsConfigBorderRuter sModuleGetConfig;
+struct in6_addr sRouterAddress;
 
-#ifdef WIN32
-tsTimerHourMinute sTimerOn = {0x21,0x30};
-tsTimerHourMinute sTimerOff = {0x06,0x25};
-tsTimerHourMinute *psTimerOn = &sTimerOn;
-tsTimerHourMinute *psTimerOff = &sTimerOff;
-uint16_t On_counter;
-uint16_t *on_counters = &On_counter;
-#else
-tsTimerHourMinute *psTimerOn = (tsTimerHourMinute*)(p_E_RAM);
-tsTimerHourMinute *psTimerOff = (tsTimerHourMinute*)(p_E_RAM+sizeof(tsTimerHourMinute));
-uint16_t *on_counters = (uint16_t *)(p_E_RAM+2*sizeof(tsTimerHourMinute));
-#endif
+
 
 /** Firmware version of the connected device */
 static uint32_t u32JennicDeviceVersion = 0;
+
 
 /** Time of last successful communications */
 long  iLastSuccessfulComms = 0;
@@ -185,12 +200,13 @@ static uint16_t CalculateChecsum(uint32_t u32Length, uint8_t *pu8Data)
 {
 	uint32_t checksum, lenght, data;
 	uint8_t *p;
-
+	
+  //printf_P(PSTR("\n\r%u %u %04X %u \n\r"),(unsigned int)(u32Length>>16),(unsigned int)(u32Length&0xFFFF),(unsigned int)pu8Data,*pu8Data);
+	
 	if (u32Length & 1) {
 		pu8Data[u32Length] = 0;
 		u32Length++;
 	}
-
 
 	checksum = ((uint16_t)(*(pu8Data + 46))) << 8 | *(pu8Data + 47);
 	lenght = ((uint16_t)(*(pu8Data + 4))) << 8 | *(pu8Data + 5);
@@ -203,6 +219,7 @@ static uint16_t CalculateChecsum(uint32_t u32Length, uint8_t *pu8Data)
 		while (checksum >> 16)
 			checksum = (checksum & 0xFFFF) + (checksum >> 16);
 	}
+
 	checksum = (uint16_t)~checksum;
 	return checksum;
 }
@@ -212,7 +229,7 @@ static uint16_t CalculateChecsum(uint32_t u32Length, uint8_t *pu8Data)
 
 static teModuleStatus eJennicModuleSendMessageIPv6(struct in6_addr *source_addr,struct in6_addr *dest_addr,uint32_t u32Length, uint8_t *pu8Data)
 {
-	uint8_t buffer[100];
+	uint8_t buffer[200];
 	uint16_t checksum;
 
 	buffer[0] = 0x60;
@@ -249,7 +266,6 @@ static teModuleStatus eJennicModuleSendMessageIPv6(struct in6_addr *source_addr,
 	buffer[46] = checksum >> 8;
 	buffer[47] = checksum & 0xff;
 
-
 	if (verbosity >= LOG_DEBUG) {
 		uint32_t i;
 
@@ -257,6 +273,7 @@ static teModuleStatus eJennicModuleSendMessageIPv6(struct in6_addr *source_addr,
 			printf("%02X", *(buffer + i));
 		putchar('\n');
 	}
+	
 	if (eJennicModuleWriteIPv6(u32Length, buffer) != E_MODULE_OK)
 	{
 		daemon_log(LOG_ERR, "Error writing packet to module");
@@ -266,44 +283,40 @@ static teModuleStatus eJennicModuleSendMessageIPv6(struct in6_addr *source_addr,
 	return E_MODULE_OK;
 }
 
+static uint8_t my_local_address[16] = { 0xFE,0x80,0x00,0x00,0x00,0x00,0x00,0x00 ,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF };
+static uint8_t my_sors_address[16] =  { 0xFD,0x04,0x0B,0xD3,0x80,0xE8,0xFF,0xFF ,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 };
+static uint8_t all_device_group[16] = { 0xFF,0x15,0x00,0x00,0x00,0x00,0x00,0x00 ,0x00,0x00,0x00,0x00,0x00,0x00,0xF0,0x0F };
+//static uint8_t all_bulbs_group[16] = { 0xFF,0x15,0x00,0x00,0x00,0x00,0x00,0x00 ,0x00,0x00,0x00,0x00,0x00,0x00,0xFE,0x04 };
+static uint8_t group_prefix[16]    = { 0xFF,0x15,0x00,0x00,0x00,0x00,0x00,0x00 ,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 };
+
+static uint8_t group_address[MAX_GROUP_TIMERS][2]={
+	{ 0xF0,0x0F },
+	{ 0xFE,0x04 },
+	{ 0x1E,0x02 },
+	{ 0x1E,0x03 },
+
+	{ 0x1E,0x04 },
+	{ 0x1E,0x05 },
+	{ 0x1E,0x06 },
+	{ 0x1E,0x07 },
+
+	{ 0x1E,0x08 },
+	{ 0x1E,0x09 },
+	{ 0x1E,0x0A },
+	{ 0x1E,0x0B },
+
+	{ 0x1E,0x0C },
+	{ 0x1E,0x0D },
+	{ 0x1E,0x0E },
+	{ 0x1E,0x0F },
+};
+
 teModuleStatus GlobalSetUint8ByModuleID(uint32_t ModuleID, uint8_t VariableIndex, uint8_t data)
 {
-	uint8_t buffer[11];
-	struct in6_addr dest_adr, source_addr;
+	uint8_t buffer[20];
 
-	source_addr.u.Byte[0] = 0xFE;
-	source_addr.u.Byte[1] = 0x80;
-	source_addr.u.Byte[2] = 0x00;
-	source_addr.u.Byte[3] = 0x00;
-	source_addr.u.Byte[4] = 0x00;
-	source_addr.u.Byte[5] = 0x00;
-	source_addr.u.Byte[6] = 0x00;
-	source_addr.u.Byte[7] = 0x00;
-	source_addr.u.Byte[8] = 0x00;
-	source_addr.u.Byte[9] = 0x00;
-	source_addr.u.Byte[10] = 0x00;
-	source_addr.u.Byte[11] = 0x00;
-	source_addr.u.Byte[12] = 0x00;
-	source_addr.u.Byte[13] = 0x00;
-	source_addr.u.Byte[14] = 0x00;
-	source_addr.u.Byte[15] = 0x01;
-
-	dest_adr.u.Byte[0] = 0xFF;
-	dest_adr.u.Byte[1] = 0x15;
-	dest_adr.u.Byte[2] = 0x00;
-	dest_adr.u.Byte[3] = 0x00;
-	dest_adr.u.Byte[4] = 0x00;
-	dest_adr.u.Byte[5] = 0x00;
-	dest_adr.u.Byte[6] = 0x00;
-	dest_adr.u.Byte[7] = 0x00;
-	dest_adr.u.Byte[8] = 0x00;
-	dest_adr.u.Byte[9] = 0x00;
-	dest_adr.u.Byte[10] = 0x00;
-	dest_adr.u.Byte[11] = 0x00;
-	dest_adr.u.Byte[12] = 0x00;
-	dest_adr.u.Byte[13] = 0x00;
-	dest_adr.u.Byte[14] = 0xF0;
-	dest_adr.u.Byte[15] = 0x0F;
+	if(eModuleState != E_STATE_RUNNING)
+		return E_MODULE_ERROR;
 
 	buffer[0] = VERSION;
 	buffer[1] = 0x1D;
@@ -320,21 +333,77 @@ teModuleStatus GlobalSetUint8ByModuleID(uint32_t ModuleID, uint8_t VariableIndex
 	buffer[9] = 0x04;
 	buffer[10] = data;
 
-	return eJennicModuleSendMessageIPv6(&source_addr,&dest_adr,11,buffer);
+	return eJennicModuleSendMessageIPv6((struct in6_addr*)&my_local_address,(struct in6_addr*)&all_device_group,11,buffer);
 }
+
+teModuleStatus GroupSetUint8ByModuleID(uint8_t group,uint32_t ModuleID, uint8_t VariableIndex, uint8_t data) {
+	uint8_t buffer[20];
+
+	if (eModuleState != E_STATE_RUNNING)
+		return E_MODULE_ERROR;
+
+	group_prefix[14] = group_address[group][0];
+	group_prefix[15] = group_address[group][1];
+
+	buffer[0] = VERSION;
+	buffer[1] = 0x1D;
+	buffer[2] = rand() & 0x7F;
+
+	buffer[3] = (ModuleID >> 24) & 0xFF;
+	buffer[4] = (ModuleID >> 16) & 0xFF;
+	buffer[5] = (ModuleID >> 8) & 0xFF;
+	buffer[6] = (ModuleID)& 0xFF;
+
+	buffer[7] = VariableIndex;
+
+	buffer[8] = 0x00;
+	buffer[9] = 0x04;
+	buffer[10] = data;
+
+	return eJennicModuleSendMessageIPv6((struct in6_addr*)&my_local_address,(struct in6_addr*) &group_prefix, 11, buffer);
+}
+
+teModuleStatus GetJenNetNetworkRouter(uint16_t u16FirstTableEntry, uint8_t u8EntryCount) {
+	uint8_t buffer[20];
+
+	if (eModuleState != E_STATE_RUNNING)
+		return E_MODULE_ERROR;
+
+	//JenNet Module NetworkTable blob table
+	uint32_t ModuleID = 0xFFFFFF01;
+	uint8_t VariableIndex = 0x04;
+	
+	buffer[0] = VERSION;
+	buffer[1] = 0x1C;	//Get_by_ID_request
+	buffer[2] = rand() & 0x7F;
+
+	buffer[3] = (ModuleID >> 24) & 0xFF;
+	buffer[4] = (ModuleID >> 16) & 0xFF;
+	buffer[5] = (ModuleID >> 8) & 0xFF;
+	buffer[6] = (ModuleID)& 0xFF;
+
+	buffer[7] = VariableIndex;
+
+	buffer[8] = (u16FirstTableEntry >> 8) & 0xFF;
+	buffer[9] = (u16FirstTableEntry) & 0xFF;;
+
+	buffer[10] = u8EntryCount;
+
+	return eJennicModuleSendMessageIPv6((struct in6_addr*)&my_sors_address, (struct in6_addr*) &sRouterAddress, 11, buffer);
+}
+
+tsMAC_Address sMAC_Request;
+tsMAC_Reject sRejectTable;
+
 
 static teModuleStatus eJennicModuleProcessMessageIPv6(uint32_t u32Length, uint8_t *pu8Data)
 {
-	// Write the packet into the TUN device and let the kernel do it's stuff
-	// !!! if (eTunDeviceWritePacket(u32Length, pu8Data) != E_TUN_OK)
-
 	uint16_t checksum1,checksum, lenght, data;
 
 	checksum1 = ((uint16_t)(*(pu8Data + 46))) << 8 | *(pu8Data + 47);
 	lenght = ((uint16_t)(*(pu8Data + 4))) << 8 | *(pu8Data + 5);
 	data = *(pu8Data + 6);
 
-	
 	if (verbosity >= LOG_DEBUG) {
 		uint32_t i;
 
@@ -345,29 +414,26 @@ static teModuleStatus eJennicModuleProcessMessageIPv6(uint32_t u32Length, uint8_
 		putchar('\n');
 	}
 
-	if (*(pu8Data + 6) == 17) {	//UDP protocol
+	checksum = CalculateChecsum(u32Length, pu8Data);
 
-		//*(pu8Data + 46) = 0;
-		//*(pu8Data + 47) = 0;
-		checksum = CalculateChecsum(u32Length, pu8Data);
-				
-		if (checksum && checksum1) {
-			daemon_log(LOG_DEBUG, "BAD Calculated checksum %04X", checksum);
-		}else if (memcmp(pu8Data + 24, &sModuleSetConfig.sSecurityConfig.uAuthSchemeData.sRadiusPAP.sAuthServerIP, sizeof(struct in6_addr)) == 0) {
-			uint8_t adr[8],temp[16];
+	if (checksum && checksum1) {
+		daemon_log(LOG_DEBUG, "BAD Calculated checksum %04X", checksum);
+	}else if (*(pu8Data + 6) == 17) {	//UDP protocol
+		if (memcmp(pu8Data + 24, &sModuleSetConfig.sSecurityConfig.uAuthSchemeData.sRadiusPAP.sAuthServerIP, sizeof(struct in6_addr)) == 0) {
+			uint8_t temp[16];
 			uint32_t i;
 
-			adr[0] = hexa_to_byte(pu8Data + 70);
-			adr[1] = hexa_to_byte(pu8Data + 72);
-			adr[2] = hexa_to_byte(pu8Data + 74);
-			adr[3] = hexa_to_byte(pu8Data + 76);
-			adr[4] = hexa_to_byte(pu8Data + 78);
-			adr[5] = hexa_to_byte(pu8Data + 80);
-			adr[6] = hexa_to_byte(pu8Data + 82);
-			adr[7] = hexa_to_byte(pu8Data + 84);
+			sMAC_Request.MAC[0] = hexa_to_byte(pu8Data + 70);
+			sMAC_Request.MAC[1] = hexa_to_byte(pu8Data + 72);
+			sMAC_Request.MAC[2] = hexa_to_byte(pu8Data + 74);
+			sMAC_Request.MAC[3] = hexa_to_byte(pu8Data + 76);
+			sMAC_Request.MAC[4] = hexa_to_byte(pu8Data + 78);
+			sMAC_Request.MAC[5] = hexa_to_byte(pu8Data + 80);
+			sMAC_Request.MAC[6] = hexa_to_byte(pu8Data + 82);
+			sMAC_Request.MAC[7] = hexa_to_byte(pu8Data + 84);
 			daemon_log(LOG_DEBUG, "RADIUS Access Request %02X%02X%02X%02X%02X%02X%02X%02X"
-				, adr[0], adr[1], adr[2], adr[3]
-				, adr[4], adr[5], adr[6], adr[7]);
+				, sMAC_Request.MAC[0], sMAC_Request.MAC[1], sMAC_Request.MAC[2], sMAC_Request.MAC[3]
+				, sMAC_Request.MAC[4], sMAC_Request.MAC[5], sMAC_Request.MAC[6], sMAC_Request.MAC[7]);
 			
 			memcpy(temp, pu8Data + 8, 16);	//change IPv6 address
 			memcpy(pu8Data + 8, pu8Data + 24, 16);
@@ -379,8 +445,17 @@ static teModuleStatus eJennicModuleProcessMessageIPv6(uint32_t u32Length, uint8_
 
 			*(pu8Data + 46) = 0;
 			*(pu8Data + 47) = 0;
+			
+			uint8_t enable = 0;// = 1;
 
-			if (true) {
+			for (i = 0;i < u16_LampsInTable;i++) {
+				if (memcmp(&((psLampTable + i)->sLampStatus.sMAC_Address.MAC[0]), &sMAC_Request, sizeof(tsMAC_Address)) == 0) {
+					enable = 1;
+					break;
+				}
+			}
+			if (enable || psModuleSetConfig->u8RadiusOff) {
+				daemon_log(LOG_DEBUG, "Accses Accept");
 				*(pu8Data + 48) = E_RADIUS_ACCESS_ACCEPT;
 				*(pu8Data + 49) = rand();
 
@@ -395,11 +470,21 @@ static teModuleStatus eJennicModuleProcessMessageIPv6(uint32_t u32Length, uint8_
 				*(pu8Data + 75) = 18;
 				for (i = 0; i < 8; i++) {
 					*(pu8Data + 76 + (i << 1)) = 0;
-					*(pu8Data + 76 + 1 + (i << 1)) = adr[7-i];
+					*(pu8Data + 76 + 1 + (i << 1)) = sMAC_Request.MAC[7-i];
 				}
 
 				checksum = 44;
 			}else {
+				daemon_log(LOG_DEBUG, "Accses Reject");
+				uint8_t sMAC_zero[8] = { 0,0,0,0,0,0,0,0 };
+				int i;
+				for (i = 0; i < MAX_ACCESS_REJECT_TABLE; i++) {
+					if (memcmp(&(sRejectTable.sReject[i]), &sMAC_zero, sizeof(tsMAC_Address)) == 0) {
+						memcpy(&(sRejectTable.sReject[i]), &sMAC_Request, sizeof(tsMAC_Address));
+						break;
+					}else if (memcmp(&(sRejectTable.sReject[i]), &sMAC_Request, sizeof(tsMAC_Address)) == 0)
+						break;
+				}
 				*(pu8Data + 48) = E_RADIUS_ACCESS_REJECT;
 				*(pu8Data + 49) = rand();
 				
@@ -443,9 +528,69 @@ static teModuleStatus eJennicModuleProcessMessageIPv6(uint32_t u32Length, uint8_
 				daemon_log(LOG_ERR, "Error writing packet to module");
 				return E_MODULE_ERROR;
 			}
+		} else if (*(pu8Data + 24) == 0xFF) {
+			if (memcmp(my_local_address, pu8Data + 8, sizeof(struct in6_addr)) != 0) {
+				daemon_log(LOG_DEBUG, "Multicast answer");
+				daemon_log(LOG_DEBUG, "Send message");
+				// Write the packet into the TUN device and let the kernel do it's stuff
+				if (eTunDeviceWritePacket(u32Length, pu8Data) != E_TUN_OK)
+				{
+					daemon_log(LOG_ERR, "Error writing to tun device");
+					return E_MODULE_ERROR;
+				}
+			} else {
+				daemon_log(LOG_DEBUG, "Local multicast answer");
+			}
+		} else if ( (*(pu8Data + 8) == 0xFE) && (((*(pu8Data + 9))&0xC0) == 0x80)) {
+			daemon_log(LOG_DEBUG, "Local message");
+		}else if(memcmp(pu8Data + 24, &my_sors_address, sizeof(struct in6_addr)) == 0) {
+			if (memcmp(pu8Data + 8, &sRouterAddress, sizeof(struct in6_addr)) == 0) {
+				daemon_log(LOG_DEBUG, "To border from router answer");
+				if (lenght >= 10) {
+					switch (*(pu8Data + 48 + 1)) {
+					case 0x11:	//Get Response
+						{
+							uint8_t JenNetNetworkBlobTable[] = { 0x01,0x04,0x00,0x4b };
+							if (memcmp(pu8Data + 48 + 3, JenNetNetworkBlobTable, 4) == 0) {
+								uint16_t u16NumberOffRemainingEntries;
+								uint16_t u16TableVersion;
+
+								u16NumberOffRemainingEntries = *(pu8Data + 48 + 7); u16NumberOffRemainingEntries <<= 8;
+								u16NumberOffRemainingEntries |= *(pu8Data + 48 + 8);
+
+								u16TableVersion = *(pu8Data + 48 + 9); u16TableVersion <<= 8;
+								u16TableVersion |= *(pu8Data + 48 + 10);
+
+								int16_t i16Lenght = lenght;
+								i16Lenght -= 19;
+								daemon_log(LOG_DEBUG, "JenNetNetworkBlobTable  NORE %d Version %d lenght %d", u16NumberOffRemainingEntries, u16TableVersion, i16Lenght);
+								ProcesNetworkRouterTable(pu8Data + 40 + 19, i16Lenght);
+							}
+						}
+						break;
+					}
+				}
+			}else {
+				daemon_log(LOG_DEBUG, "To border answer");
+			}
+		}else{
+			daemon_log(LOG_DEBUG, "Send message");
+			// Write the packet into the TUN device and let the kernel do it's stuff
+			if (eTunDeviceWritePacket(u32Length, pu8Data) != E_TUN_OK)
+			{
+				daemon_log(LOG_ERR, "Error writing to tun device");
+				return E_MODULE_ERROR;
+			}
+		}
+	}else if (*(pu8Data + 6) == 58) {	//ICMP for IPv6 protocol
+		daemon_log(LOG_DEBUG, "Send message");
+		// Write the packet into the TUN device and let the kernel do it's stuff
+		if (eTunDeviceWritePacket(u32Length, pu8Data) != E_TUN_OK)
+		{
+			daemon_log(LOG_ERR, "Error writing to tun device");
+			return E_MODULE_ERROR;
 		}
 	}
-	
 	return E_MODULE_OK;
 }
 
@@ -469,7 +614,7 @@ static teModuleStatus eJennicModuleWriteConfig(void)
         daemon_log(LOG_INFO, "Config JenNet ID      : 0x%lx", ntohl(sModuleSetConfig.sModuleConfigV11.u32NetworkID));
         daemon_log(LOG_INFO, "Config 6LoWPAN Prefix : 0x%08lx%08lx", ntohl(sModuleSetConfig.sModuleConfigV11.u64NetworkPrefixMSB), 
 					ntohl(sModuleSetConfig.sModuleConfigV11.u64NetworkPrefixLSB));
-                
+		
         /* Send the module's configuration data */
         vSL_WriteMessage(E_SL_MSG_CONFIG, sizeof(tsModule_ConfigV11), (uint8_t*)&sModuleSetConfig.sModuleConfigV11);
     }
@@ -511,6 +656,7 @@ static teModuleStatus eJennicModuleWriteSecurityConfig(void)
             }
             
             default:
+				daemon_log(LOG_ERR, "Authorisation Scheme  ERROR");
                 break;
         }
     }
@@ -703,40 +849,45 @@ teModuleStatus eJennicModuleStateMachine(uint8_t bTimeout)
 #define MAX_VERSION_RETRIES 3
 #define MAX_ADDRESS_RETRIES 10
     
-    switch (eModuleState)
-    {
-        case (E_STATE_DETERMINE_VERSION):
-            if (sFlags.uVersionKnown == 0)
-            {
-                if (u32Retries)
-                {
-                    daemon_log(LOG_DEBUG, "Timeout waiting for version");
-                }
-                if (++u32Retries < MAX_VERSION_RETRIES)
-                {
-                    daemon_log(LOG_DEBUG, "Requesting version");
-                    
-                    eJennicModuleWriteVersionRequest();
-                }
-                else
-                {
-                    u32Retries = 0;
-                    //eModuleState = E_STATE_CONFIGURE_NETWORK;
-                }
-                break;
-            }
-            else
-            {
-                u32Retries = 0;
-                eModuleState = E_STATE_CONFIGURE_NETWORK;
-            }
-            /* Fall through to next state if we know the version of border router node */
+	switch (eModuleState)
+	{
+	case (E_STATE_DETERMINE_VERSION) :
+		if (sFlags.uVersionKnown == 0)
+		{
+			if (u32Retries)
+			{
+				daemon_log(LOG_DEBUG, "Timeout waiting for version");
+			}
+			if (++u32Retries < MAX_VERSION_RETRIES)
+			{
+				daemon_log(LOG_DEBUG, "Requesting version");
 
-        case (E_STATE_CONFIGURE_NETWORK):
+				eJennicModuleWriteVersionRequest();
+			}
+			else
+			{
+				u32Retries = 0;
+				//eModuleState = E_STATE_CONFIGURE_NETWORK;
+			}
+			break;
+		}
+		else
+		{
+			u32Retries = 0;
+			eModuleState = E_STATE_CONFIGURE_NETWORK;
+		}
+									 /* Fall through to next state if we know the version of border router node */
+
+	case (E_STATE_CONFIGURE_NETWORK) :
+			if (sModuleSetConfig.sModuleConfigV11.u64NetworkPrefixMSB == 0){
+				eModuleState = E_STATE_IDLE;
+				daemon_log(LOG_CRIT, "BAD config");
+				break;
+			}
             if( eJennicModuleWriteConfig() == E_MODULE_OK )
-							eModuleState = E_STATE_CONFIGURE_SECURITY;
-						else
-							eModuleState = E_STATE_DETERMINE_VERSION;
+				eModuleState = E_STATE_CONFIGURE_SECURITY;
+			else
+				eModuleState = E_STATE_DETERMINE_VERSION;
             break;
         
         case (E_STATE_CONFIGURE_SECURITY):
@@ -885,7 +1036,10 @@ teModuleStatus eJennicModuleStart(void)
 
 	//if ( eModuleState >= E_STATE_START_MODULE)
 		eJennicModuleReset();
-    eModuleState    = E_STATE_DETERMINE_VERSION;
+	if( sModuleSetConfig.sModuleConfigV11.u64NetworkPrefixMSB == 0 )
+		eModuleState = E_STATE_IDLE;
+	else
+		eModuleState = E_STATE_DETERMINE_VERSION;
     memset(&sFlags, 0, sizeof(sFlags));
     return eJennicModuleStateMachine(0);
 }
@@ -896,6 +1050,8 @@ static teModuleStatus eJennicModuleProcessMessageVersion(uint32_t u32Length, uin
     u32JennicDeviceVersion |= JENNIC_VERSION_MAJOR ((uint32_t)pu8Data[0]);
     u32JennicDeviceVersion |= JENNIC_VERSION_MINOR (pu8Data[1]);
     u32JennicDeviceVersion |= JENNIC_VERSION_REV   (pu8Data[2]);
+
+	sRouterStatus.u32JennicDeviceVersion = htonl(u32JennicDeviceVersion);
 
     daemon_log(LOG_INFO, "Connected to Border router V%d.%d.%d", pu8Data[0], pu8Data[1], pu8Data[2]);
 
@@ -998,7 +1154,7 @@ static teModuleStatus eJennicModuleProcessMessageIPv6Address(uint32_t u32Length,
 {
     char buffer[INET6_ADDRSTRLEN] = "Could not determine address";
     inet_ntop((struct in6_addr *)pu8Data, buffer);
-    
+	memcpy(&sRouterAddress, pu8Data, sizeof(struct in6_addr));
     daemon_log(LOG_INFO, "Module address: %s", buffer);
     
 #ifdef USE_ZEROCONF

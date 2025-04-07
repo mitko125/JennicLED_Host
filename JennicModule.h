@@ -54,13 +54,25 @@ extern "C" {
 
 typedef enum
 {
-	COMMAND_SET_HOST_DATA	=	1,
-	IPv6_PACKET						=	2,
-	COMMAND_ON						= 3,
-	COMMAND_OFF						= 4,
+	COMMAND_SET_HOST_DATA	= 1,
+	IPv6_PACKET				= 2,
+	COMMAND_ON				= 3,
+	COMMAND_OFF				= 4,
 	COMMAND_TIME_ON_OFF		= 5,
-	GET_STATUS_SIM_ERR		= 6,
-	SIM_ERRORS						= 7,
+	GET_STATUS_ROUTER		= 6,
+	SEND_STATUS_ROUTER		= 7,
+	COMMAND_GET_HOST_DATA	= 8,
+	COMMAND_MAC_ADDRESS		= 9,
+	COMMAND_SET_TIMERS		= 10,	//& data time
+	SEND_DATE_TIME			= 11,
+	COMMAND_GET_TIMERS		= 12,
+	COMMAND_GET_REJECT		= 13,
+	SEND_REJECT_TABLE		= 14,
+	SEND_LAMPS_MAC_TABLE	= 15,
+	GET_LAMPS_STATUS		= 16,
+	SEND_LAMPS_STATUS		= 17,
+	SET_WORK_HOURS			= 18,
+	COMMAND_CLEAR_RAM		= 19,
 } teCommandsPC;
 
 /****************************************************************************/
@@ -94,115 +106,7 @@ typedef enum
 
 #define JENNIC_PORT 0x0751
 
-/** Enumerated type of statuses */
-typedef enum
-{
-    E_MODULE_OK,
-    E_MODULE_ERROR,
-    E_MODULE_COMMS_FAILED,
-} teModuleStatus;
 
-/** Enumerated type of allowable certification regions */
-typedef enum
-{
-    E_REGION_EUROPE,
-    E_REGION_USA,
-    E_REGION_JAPAN,
-    
-    E_REGION_MAX
-} teRegion;
-
-
-/** Enumerated type of allowable channels */
-typedef enum
-{
-    E_CHANNEL_AUTOMATIC     = 0,
-    E_CHANNEL_MINIMUM       = 11,
-    E_CHANNEL_MAXIMUM       = 26
-} teChannel;
-
-
-/** Enumerated type of supported authorisation schemes */
-typedef enum
-{
-    E_AUTH_SCHEME_NONE,
-    E_AUTH_SCHEME_RADIUS_PAP,
-		
-		E_AUTH_SCHEME_DUMMY = 2147483647,	/**< Force this emumeration to be 4 bytes as sent by the host. */
-} teAuthScheme;
-
-
-/** Per authorisation scheme union of required configuration data */
-typedef union
-{
-    struct
-    {
-        struct in6_addr sAuthServerIP;
-    } sRadiusPAP;
-} tuAuthSchemeData;
-
-
-/** Enumerated type of supported radio front ends */
-typedef enum
-{
-//#pragma pack(push, 1)
-    E_FRONTEND_STANDARD_POWER,          /**< No frontend - just a standard power device */
-    E_FRONTEND_HIGH_POWER,              /**< High power module - enable PA and LNA */
-    E_FRONTEND_ETSI,                    /**< Enable ETSI compliant mode */
-//#pragma pack(pop)
-} __attribute__((__packed__))
-teRadioFrontEnd;
-
-
-/** Structure definition to configure the operating parameters of the network
-*  This verison of the structure is used for the 1.1.X series border routers
-*/
-typedef struct
-{
-//#pragma pack(push, 1)
-	uint8_t     u8Region;
-	uint8_t     u8Channel;
-	uint16_t    u16PanID;
-	uint32_t    u32NetworkID;
-	uint32_t    u64NetworkPrefixMSB;
-	uint32_t    u64NetworkPrefixLSB;
-//#pragma pack(pop)
-} __attribute__((__packed__))
-tsModule_ConfigV11;
-
-/** Structure definition to configure the security parameters of the network */
-typedef struct
-{
-//#pragma pack(push, 1)
-	struct in6_addr  sKey;                      /**< Store key like an IPv6 address. That gets us round the endianness issues */
-
-	teAuthScheme eAuthScheme;
-	tuAuthSchemeData uAuthSchemeData;
-//#pragma pack(pop)
-} __attribute__((__packed__))
-tsSecurityConfig;
-
-
-typedef struct
-{
-//#pragma pack(push, 1)
-	tsModule_ConfigV11	sModuleConfigV11;
-	tsSecurityConfig	sSecurityConfig;
-	teRadioFrontEnd		eRadioFrontEnd;
-	uint8_t				u8JenNetProfile;
-	uint8_t			    iAntennaDiversity;
-//#pragma pack(pop)
-} __attribute__((__packed__))
-tsConfigBorderRuter;
-
-typedef struct
-{
-//#pragma pack(push, 1)
-	uint8_t     u8Hour;
-	uint8_t     u8Minute;
-//#pragma pack(pop)
-} __attribute__((__packed__))
-tsTimerHourMinute;
 
 /****************************************************************************/
 /***        Local Function Prototypes                                     ***/
@@ -213,13 +117,10 @@ tsTimerHourMinute;
 /****************************************************************************/
 
 
-
-extern tsConfigBorderRuter sModuleSetConfig;
 extern tsConfigBorderRuter sModuleGetConfig;
-
-extern tsTimerHourMinute *psTimerOn;
-extern tsTimerHourMinute *psTimerOff;
-extern uint16_t *on_counters;
+extern struct in6_addr sRouterAddress;
+extern tsMAC_Reject sRejectTable;
+extern uint8_t eModuleState;
 
 /****************************************************************************/
 /***        Local Variables                                               ***/
@@ -279,6 +180,10 @@ teModuleStatus eJennicModuleStateMachine(uint8_t bTimeout);
 
 void inet_ntop(struct in6_addr * adr, char *buffer);
 teModuleStatus GlobalSetUint8ByModuleID(uint32_t ModuleID, uint8_t VariableIndex, uint8_t data);
+
+teModuleStatus GroupSetUint8ByModuleID(uint8_t group, uint32_t ModuleID, uint8_t VariableIndex, uint8_t data);
+
+teModuleStatus GetJenNetNetworkRouter(uint16_t u16FirstTableEntry, uint8_t u8EntryCount);
 
 /****************************************************************************/
 /***        Local Functions                                               ***/
