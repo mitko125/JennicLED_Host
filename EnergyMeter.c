@@ -47,7 +47,7 @@ typedef struct byte2_2{
 }byte2_2;
 
 typedef union bits32{
-	FLOAT_DATA float_data;
+	float float_data;
 	unsigned long int u_long_data;
 	long int long_data;
 	byte2_2 byte2_2;
@@ -94,7 +94,7 @@ void ENERGY_METER_Loop(void){
 	}
 }
 
-static FLOAT_DATA GetDoubleFromMODBUS(uint8_t offset){
+static float GetDoubleFromMODBUS(uint8_t offset){
 	bits32 data;
 	
 	data.byte4.hh = *(ptr_to_data_read + offset + 0 );
@@ -129,7 +129,7 @@ void MODBUS_Maser_Ok_reciv(void){
 		sCurrentEnergy.L3_Voltage = GetDoubleFromMODBUS(8);
 	
 		sCurrentEnergy.Grid_frequency = GetDoubleFromMODBUS(12);
-	
+																											//(16);	//Current*
 		sCurrentEnergy.L1_Current = GetDoubleFromMODBUS(20);
 		sCurrentEnergy.L2_Current = GetDoubleFromMODBUS(24);
 		sCurrentEnergy.L3_Current = GetDoubleFromMODBUS(28);
@@ -168,8 +168,19 @@ void MODBUS_Maser_Ok_reciv(void){
 		sTotalEnergy.L1_Total_active_energy = GetDoubleFromMODBUS(12);
 		sTotalEnergy.L2_Total_active_energy = GetDoubleFromMODBUS(16);
 		sTotalEnergy.L3_Total_active_energy = GetDoubleFromMODBUS(20);
+		//24	Forward active energy
+		//28
+		//32
+		//36
+		//40
+		//44
 		
-		
+		//48	Reverse active energy
+		//52
+		//56
+		//60
+		//64
+		//68
 		sTotalEnergy.Total_reactive_energy = GetDoubleFromMODBUS(72);
 		sTotalEnergy.T1_Total_reactive_energy = GetDoubleFromMODBUS(76);
 		sTotalEnergy.T2_Total_reactive_energy = GetDoubleFromMODBUS(80);

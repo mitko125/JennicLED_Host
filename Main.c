@@ -59,7 +59,7 @@ void get_pin(void){
 	strcpy_s(pin,5,PIN_STR);
 }
 
-#define HOST_VERSION 0x00030000UL
+#define HOST_VERSION 0x00040000UL
 
 
 #else	// WIN32
@@ -184,10 +184,13 @@ int main(void){
 				break;
 #ifndef WIN32
 			case '5':
-				if( PORT_GPRS_RST.IN & GPRS_RST )
+				if( PORT_GPRS_RST.IN & GPRS_RST ){
+					printf_P(PSTR("GPRS JP6 RESET off\n\r"));
 					PORT_GPRS_RST.OUTCLR = GPRS_RST;
-				else
+				}else{
+					printf_P(PSTR("GPRS JP6 RESET on\n\r"));
 					PORT_GPRS_RST.OUTSET = GPRS_RST;
+				}
 				break;
 			case '6':
 				GPRS_put_str("0123456789ABCDEF");
@@ -260,12 +263,6 @@ int main(void){
 			case 'K':
 				TestSubTreeNodes();
 				break;
-#ifndef WIN32
-			case 'p':
-			case 'P':
-				set_pin();
-				break;
-#endif //WIN32
 			case 't':
 			case 'T':
 				{
@@ -320,6 +317,11 @@ int main(void){
 					}
 				}
 				break;
+#ifndef WIN32
+			case 'p':
+			case 'P':
+				set_pin();
+				break;
 			case 'a':
 			case 'A':
 				key_a = 1;
@@ -328,6 +330,39 @@ int main(void){
 			case 'B':
 				key_b = 1;
 				break;
+			case 's':
+			case 'S':
+				{
+					printf_P(PSTR("\n\rSet SimState 0-13 and Enter:"));
+					uint8_t data = get_digits();
+					SetSimState(BCD_INT(data));
+				}
+				break;
+			case 'j':
+			case 'J':
+				{
+					printf_P(PSTR("\n\rSendOnlyCommand 0-13 and Enter:"));
+					uint8_t data = get_digits();
+					SendOnlyCommand(BCD_INT(data));
+				}
+				break;
+			case 'g':
+			case 'G':
+				PrintSimState();
+				break;
+			case 'c':
+			case 'C':
+				key_c = 1;
+				break;
+			case 'd':
+				printf_P(PSTR("\n\rLast SIM Reset: "));
+				PrintDateTime(&sRouterStatus.sDateTimeResetGPRS.date_time[0]);
+				printf_P(PSTR(" read From client: "));
+				PrintDateTime(&sRouterStatus.sDateTimeLastClient.date_time[0]);
+				printf_P(PSTR("\n\r\n\r"));
+			case 'D':
+				break;
+#endif //WIN32
 			case 'q':
 			case 'Q':
 				PrintCurrentEnergy();

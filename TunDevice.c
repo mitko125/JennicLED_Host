@@ -27,7 +27,7 @@
 #include "TunDevice.h"
 #include "JennicModule.h"
 
-uint8_t key_a,key_b;
+uint8_t key_a,key_b,key_c;
 
 #undef SIM_900
 
@@ -353,18 +353,18 @@ int sim_serial_write(const unsigned char data)
 #define T_WAIT_BUTE 300	//ms
 
 typedef enum {
-	AT_test,
-	ATE0,
-	CIFSR_test,
-	PIN_test,
-	PIN_set,
+	AT_test = 0,
+	ATE0,	//1
+	CIFSR_test,	//2
+	PIN_test,	//3
+	PIN_set,	//4
 	CIPMUX,	//5
-	CREG,
-	CGATT,
-	CSQ,
-	CSTT,
+	CREG,	//6
+	CGATT,	//7
+	CSQ,	//8
+	CSTT,	//9
 	CIICR,	//10
-	BAD_PIN,	
+	BAD_PIN,	//11
 	TO_Open,	//12
 	Opened,	//13
 }sim900state;
@@ -417,8 +417,10 @@ void On_off_SIM(void){
 	
 	if( first_time )
 		first_time = 0;
-	else
+	else{
 		sRouterStatus.u16SimErrors = htons(ntohs(sRouterStatus.u16SimErrors) + 1);
+		memcpy(&(sRouterStatus.sDateTimeResetGPRS), date_time, sizeof(tsDateTime));
+	}
 	
 	daemon_log(LOG_DEBUG, "On/Off SIM");
 	fl_test_connect = 0;
@@ -616,6 +618,7 @@ void LoopRead(void) {
 					if (verbosity >= LOG_DEBUG)
 						daemon_log(LOG_DEBUG, "From client SIM:%s", ipv6_buf);
 					butes_reciv = 	to_reciv;
+					memcpy(&(sRouterStatus.sDateTimeLastClient), date_time, sizeof(tsDateTime));
 	
 					to_reciv = 0;
 					recived = 0;
@@ -678,6 +681,243 @@ void LoopRead(void) {
 	}
 }
 
+void SendOnlyCommand(uint8_t new_state){
+	if( new_state > Opened )
+		return;
+	switch( new_state ){
+		case AT_test:
+		{
+			//SleepSIM(3000);
+			SimWrite((unsigned char*)"AT\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case ATE0:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"ATE0\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case CIFSR_test:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CIFSR\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case PIN_test:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CPIN?\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case PIN_set:
+		{
+			//SleepSIM(3000);
+			char text[50];
+			int old_ver = verbosity;
+			verbosity = LOG_WARNING;
+			#ifdef WIN32
+			sprintf_s(text,sizeof(text), "AT+CPIN=\"%s\"\r\n", pin);
+			#else
+			sprintf(text, "AT+CPIN=\"%s\"\r\n", pin);
+			#endif
+			SimWrite((unsigned char*)text);
+			verbosity = old_ver;
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case CIPMUX:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CIPMUX=1\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case CREG:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CREG?\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case CGATT:
+		{
+			//SleepSIM(4000);
+			SimWrite((unsigned char*)"AT+CGATT?\r\n");
+			SimRead(buffer, sizeof(buffer));		
+		}
+		break;
+		case CSQ:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CSQ\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case CSTT:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CSTT=\"tvulosv\"\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case CIICR:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CIICR\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case BAD_PIN:
+			break;
+		case TO_Open:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CIPSERVER=1,1873\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case Opened:
+		{
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+	}
+}
+
+void SetSimState(uint8_t new_state){
+	if( new_state > Opened )
+		return;
+	switch( state = new_state ){
+		case AT_test:
+		{
+			//SleepSIM(3000);
+			SimWrite((unsigned char*)"AT\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case ATE0:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"ATE0\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case CIFSR_test:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CIFSR\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case PIN_test:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CPIN?\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case PIN_set:
+		{
+			//SleepSIM(3000);
+			char text[50];
+			int old_ver = verbosity;
+			verbosity = LOG_WARNING;
+			#ifdef WIN32
+			sprintf_s(text,sizeof(text), "AT+CPIN=\"%s\"\r\n", pin);
+			#else
+			sprintf(text, "AT+CPIN=\"%s\"\r\n", pin);
+			#endif
+			SimWrite((unsigned char*)text);
+			verbosity = old_ver;
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case CIPMUX:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CIPMUX=1\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case CREG:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CREG?\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case CGATT:
+		{
+			//SleepSIM(4000);
+			SimWrite((unsigned char*)"AT+CGATT?\r\n");
+			SimRead(buffer, sizeof(buffer));		
+		}
+		break;
+		case CSQ:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CSQ\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case CSTT:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CSTT=\"tvulosv\"\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case CIICR:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CIICR\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case BAD_PIN:
+			break;
+		case TO_Open:
+		{
+			//SleepSIM(1000);
+			SimWrite((unsigned char*)"AT+CIPSERVER=1,1873\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case Opened:
+		{
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+	}
+}
+
+void PrintSimState(void)
+{
+	char text_state[20] = "Unknow";
+	
+	switch( state ){
+		case AT_test:	strcpy_P(text_state,PSTR("0 AT_test"));	break;
+		case ATE0:	strcpy_P(text_state,PSTR("1 ATE0"));	break;
+		case CIFSR_test:	strcpy_P(text_state,PSTR("2 CIFSR_test"));	break;
+		case PIN_test:	strcpy_P(text_state,PSTR("3 PIN_test"));	break;
+		case PIN_set:	strcpy_P(text_state,PSTR("4 PIN_set"));	break;
+		case CIPMUX:	strcpy_P(text_state,PSTR("5 CIPMUX"));	break;
+		case CREG:	strcpy_P(text_state,PSTR("6 CREG"));	break;
+		case CGATT:	strcpy_P(text_state,PSTR("7 CGATT"));	break;
+		case CSQ:	strcpy_P(text_state,PSTR("8 CSQ"));	break;
+		case CSTT:	strcpy_P(text_state,PSTR("9 CSTT"));	break;
+		case CIICR:	strcpy_P(text_state,PSTR("10 CIICR"));	break;
+		case BAD_PIN:	strcpy_P(text_state,PSTR("11 BAD_PIN"));	break;
+		case TO_Open:	strcpy_P(text_state,PSTR("12 TO_Open"));	break;
+		case Opened:	strcpy_P(text_state,PSTR("13 Opened"));	break;
+	}
+	printf_P(PSTR("\n\rSim status: %s fl_read = %d t_min_no_connect = %d\n\r\n\r"),text_state,fl_read,t_min_no_connect);
+}
+
 void SimLoop(void) {
 
 	if (state < Opened) {
@@ -689,15 +929,22 @@ void SimLoop(void) {
 		pHC->fl_write = false;*/
 	}
 	
+	if(key_a){
+		key_a = 0;
+		//printf("opi2 $d\n\r",key_a);
+		SimWrite((unsigned char*)"AT\r\n");
+		SimRead(buffer, sizeof(buffer));
+	}
+		
 	if (fl_read){
-		if(key_a){
-			key_a = 0;
+		if(key_b){
+			key_b = 0;
 			//printf("opi2 $d\n\r",key_b);
 			SimWrite((unsigned char*)"AT+CIPSERVER?\r\n");
 			SimRead(buffer, sizeof(buffer));
 		}
-		if(key_b){
-			key_b = 0;
+		if(key_c){
+			key_c = 0;
 			//printf("opi2 $d\n\r",key_b);
 			SimWrite((unsigned char*)"AT+CIPSTATUS\r\n");
 			SimRead(buffer, sizeof(buffer));
@@ -813,8 +1060,8 @@ void SimLoop(void) {
 		break;
 		case BAD_PIN:
 			break;
-		default:
-			break;
+		//default:
+		//	break;
 		}
 	}
 }
@@ -1100,6 +1347,8 @@ teTunStatus eTunDeviceReadPacket(void)
 				SendPacage(HEADER_SIZE + 1 + sizeof(tsRouterStatus));
 				break;
 			case COMMAND_READ_CURRENT_ENERGY:
+				printf("\n\r%d %d %d\n\r\n\r",
+					sizeof(float),sizeof(double),sizeof(float));	
 				ipv6_buf[0] = (sizeof(tsCurrentEnergy) + 1) >> 8;
 				ipv6_buf[1] = (sizeof(tsCurrentEnergy) + 1) & 0xFF;
 				ipv6_buf[2] = VERSION;
@@ -1155,7 +1404,7 @@ teTunStatus eTunDeviceReadPacket(void)
 						/*printf("Current %02X-%02X-%02X %02X:%02X:%02X %d %d %d %d\n\r",
 							reverse_time[0],reverse_time[1],reverse_time[2],
 							reverse_time[3],reverse_time[4],reverse_time[5],
-							sizeof(FLOAT_DATA),sizeof(tsSendEnergyArray),sizeof(tsCurrentEnergySmall),sizeof(tsCurrenEnegryArray));			*/			
+							sizeof(float),sizeof(tsSendEnergyArray),sizeof(tsCurrentEnergySmall),sizeof(tsCurrenEnegryArray));			*/			
 						if( memcmp( reverse_time , &(psSendEnergyArray->reversDateTimeStart) , sizeof(tsDateTime)) < 0 )
 							goto no_add_data;
 						if( memcmp( reverse_time , &(psSendEnergyArray->reversDateTimeEnd) , sizeof(tsDateTime)) > 0 )

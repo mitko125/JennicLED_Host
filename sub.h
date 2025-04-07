@@ -20,3 +20,4 @@ void PrintCurrentEnergy(void);
 void PrintTotalEnergy(void);
 void AddCurrentEnergyInArray(void);
 void PrintArrayCurrenEnergy(void);
+void PrintDateTime(uint8_t * data);

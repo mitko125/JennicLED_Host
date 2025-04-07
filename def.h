@@ -14,7 +14,8 @@ struct in6_addr {
 #define false 0
 #endif
 
-#define INT_BCD(A) (((A/10)<<4)|(A%10))
+#define INT_BCD(A) ( ((A/10)<<4) | (A%10) )
+#define BCD_INT(A) ( ((A>>4)*10) + (A&0x0F) )
 
 #define SIZE_RAM 0x8000
 
@@ -65,13 +66,6 @@ extern uint32_t time_1s;
 #ifndef INET6_ADDRSTRLEN
 #define INET6_ADDRSTRLEN 46
 #endif
-
-#ifndef WIN32
-#define FLOAT_DATA float
-#else	//WIN32
-#define FLOAT_DATA double
-#endif	//WIN32
-
 
 /** Enumerated type of statuses */
 typedef enum
@@ -267,6 +261,8 @@ PACKED(
 	uint32_t u32JennicDeviceVersion;
 	uint8_t u8Inputs;
 	uint8_t u8Outputs;
+	tsDateTime sDateTimeResetGPRS;	// > V3.0.0
+	tsDateTime sDateTimeLastClient;	// > V3.0.0 PC н€ма нужда да го чете,чете се само от  онцентратора
 })tsRouterStatus;
 
 PACKED(
@@ -281,29 +277,29 @@ PACKED(
 {
 	tsDateTime	sLastContact;
 	
-	FLOAT_DATA L1_Voltage;
-	FLOAT_DATA L2_Voltage;
-	FLOAT_DATA L3_Voltage;
-	FLOAT_DATA Grid_frequency;
-	FLOAT_DATA L1_Current;
-	FLOAT_DATA L2_Current;
-	FLOAT_DATA L3_Current;
-	FLOAT_DATA Active_power;
-	FLOAT_DATA L1_Active_power;
-	FLOAT_DATA L2_Active_power;
-	FLOAT_DATA L3_Active_power;
-	FLOAT_DATA Reactive_power;
-	FLOAT_DATA L1_Reactive_power;
-	FLOAT_DATA L2_Reactive_power;
-	FLOAT_DATA L3_Reactive_power;
-	FLOAT_DATA Apparent_power;
-	FLOAT_DATA L1_Apparent_power;
-	FLOAT_DATA L2_Apparent_power;
-	FLOAT_DATA L3_Apparent_power;
-	FLOAT_DATA Power_factor;
-	FLOAT_DATA L1_Power_factor;
-	FLOAT_DATA L2_Power_factor;
-	FLOAT_DATA L3_Power_factor;
+	float L1_Voltage;
+	float L2_Voltage;
+	float L3_Voltage;
+	float Grid_frequency;
+	float L1_Current;
+	float L2_Current;
+	float L3_Current;
+	float Active_power;
+	float L1_Active_power;
+	float L2_Active_power;
+	float L3_Active_power;
+	float Reactive_power;
+	float L1_Reactive_power;
+	float L2_Reactive_power;
+	float L3_Reactive_power;
+	float Apparent_power;
+	float L1_Apparent_power;
+	float L2_Apparent_power;
+	float L3_Apparent_power;
+	float Power_factor;
+	float L1_Power_factor;
+	float L2_Power_factor;
+	float L3_Power_factor;
 })tsCurrentEnergy;
 
 PACKED(
@@ -311,19 +307,19 @@ PACKED(
 {
 	tsDateTime	sLastContact;
 	
-	FLOAT_DATA Total_active_energy;
-	FLOAT_DATA T1_Total_active_energy;
-	FLOAT_DATA T2_Total_active_energy;
-	FLOAT_DATA L1_Total_active_energy;
-	FLOAT_DATA L2_Total_active_energy;
-	FLOAT_DATA L3_Total_active_energy;
+	float Total_active_energy;
+	float T1_Total_active_energy;
+	float T2_Total_active_energy;
+	float L1_Total_active_energy;
+	float L2_Total_active_energy;
+	float L3_Total_active_energy;
 	
-	FLOAT_DATA Total_reactive_energy;
-	FLOAT_DATA T1_Total_reactive_energy;
-	FLOAT_DATA T2_Total_reactive_energy;
-	FLOAT_DATA L1_Total_reactive_energy;
-	FLOAT_DATA L2_Total_reactive_energy;
-	FLOAT_DATA L3_Total_reactive_energy;
+	float Total_reactive_energy;
+	float T1_Total_reactive_energy;
+	float T2_Total_reactive_energy;
+	float L1_Total_reactive_energy;
+	float L2_Total_reactive_energy;
+	float L3_Total_reactive_energy;
 	
 })tsTotalEnergy;
 
@@ -333,29 +329,29 @@ PACKED(
 {
 	tsDateTime	DateTime;
 	
-	/*FLOAT_DATA L1_Voltage;
-	FLOAT_DATA L2_Voltage;
-	FLOAT_DATA L3_Voltage;
-	FLOAT_DATA Grid_frequency;
-	FLOAT_DATA L1_Current;
-	FLOAT_DATA L2_Current;
-	FLOAT_DATA L3_Current;*/
-	FLOAT_DATA Active_power;
-	FLOAT_DATA L1_Active_power;
-	FLOAT_DATA L2_Active_power;
-	FLOAT_DATA L3_Active_power;
-/*	FLOAT_DATA Reactive_power;
-	FLOAT_DATA L1_Reactive_power;
-	FLOAT_DATA L2_Reactive_power;
-	FLOAT_DATA L3_Reactive_power;
-	FLOAT_DATA Apparent_power;
-	FLOAT_DATA L1_Apparent_power;
-	FLOAT_DATA L2_Apparent_power;
-	FLOAT_DATA L3_Apparent_power;
-	FLOAT_DATA Power_factor;
-	FLOAT_DATA L1_Power_factor;
-	FLOAT_DATA L2_Power_factor;
-	FLOAT_DATA L3_Power_factor;*/
+	/*float L1_Voltage;
+	float L2_Voltage;
+	float L3_Voltage;
+	float Grid_frequency;
+	float L1_Current;
+	float L2_Current;
+	float L3_Current;*/
+	float Active_power;
+	float L1_Active_power;
+	float L2_Active_power;
+	float L3_Active_power;
+/*	float Reactive_power;
+	float L1_Reactive_power;
+	float L2_Reactive_power;
+	float L3_Reactive_power;
+	float Apparent_power;
+	float L1_Apparent_power;
+	float L2_Apparent_power;
+	float L3_Apparent_power;
+	float Power_factor;
+	float L1_Power_factor;
+	float L2_Power_factor;
+	float L3_Power_factor;*/
 	
 })tsCurrentEnergySmall;
 

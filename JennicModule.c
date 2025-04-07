@@ -1093,7 +1093,7 @@ static teModuleStatus eJennicModuleProcessMessageVersion(uint32_t u32Length, uin
     u32JennicDeviceVersion |= JENNIC_VERSION_MINOR (pu8Data[1]);
     u32JennicDeviceVersion |= JENNIC_VERSION_REV   (pu8Data[2]);
 
-	sRouterStatus.u32JennicDeviceVersion = htonl(u32JennicDeviceVersion);
+		sRouterStatus.u32JennicDeviceVersion = htonl(u32JennicDeviceVersion);
 
     daemon_log(LOG_INFO, "Connected to Border router V%d.%d.%d", pu8Data[0], pu8Data[1], pu8Data[2]);
 
