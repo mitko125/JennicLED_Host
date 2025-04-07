@@ -2,6 +2,7 @@ extern unsigned char date_time[];
 extern unsigned char error_clock;
 extern uint8_t on_relay;
 extern long time_sec_sub;
+extern tsDateTime	DateTimeCleared;
 
 void text(void);
 void main_loop(void);
@@ -15,3 +16,7 @@ unsigned char check_crc(unsigned char *p, int len);
 void ProcesNetworkRouterTable(uint8_t * pu8Data, int16_t i16Lenght);
 void TestNetworkRouterTable(void);
 void TestSubTreeNodes(void);
+void PrintCurrentEnergy(void);
+void PrintTotalEnergy(void);
+void AddCurrentEnergyInArray(void);
+void PrintArrayCurrenEnergy(void);

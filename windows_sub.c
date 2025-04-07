@@ -23,6 +23,7 @@
 
 unsigned char * p_E_RAM = NULL;
 
+
 void InitHardware(void) {
 	//Init
 
@@ -46,6 +47,7 @@ void InitHardware(void) {
 		}
 		fclose(fp);
 	}
+	ENERGY_METER_init();
 }
 
 void save_RAM(void)
@@ -75,4 +77,75 @@ void get_time(void)
 
 void SetDateTime(void){
 	error_clock = 0;
+}
+
+static time_t  sLastLoop = 0; 
+
+void ENERGY_METER_init(void){
+
+		
+	get_time();
+	sLastLoop = time(NULL);
+	
+	memcpy(&(sCurrentEnergy.sLastContact), date_time, sizeof(tsDateTime));
+		
+	sCurrentEnergy.L1_Voltage = (FLOAT_DATA)220.1;
+	sCurrentEnergy.L2_Voltage = (FLOAT_DATA)220.2;
+	sCurrentEnergy.L3_Voltage = (FLOAT_DATA)220.3;
+	
+	sCurrentEnergy.Grid_frequency = (FLOAT_DATA)50;
+	
+	sCurrentEnergy.L1_Current = (FLOAT_DATA)1.1;
+	sCurrentEnergy.L2_Current = (FLOAT_DATA)1.2;
+	sCurrentEnergy.L3_Current = (FLOAT_DATA)1.3;
+	
+	sCurrentEnergy.Active_power = (FLOAT_DATA)2;
+	sCurrentEnergy.L1_Active_power = (FLOAT_DATA)2.1;
+	sCurrentEnergy.L2_Active_power = (FLOAT_DATA)2.2;
+	sCurrentEnergy.L3_Active_power = (FLOAT_DATA)2.3;
+	
+	sCurrentEnergy.Reactive_power = (FLOAT_DATA)3;
+	sCurrentEnergy.L1_Reactive_power = (FLOAT_DATA)3.1;
+	sCurrentEnergy.L2_Reactive_power = (FLOAT_DATA)3.2;
+	sCurrentEnergy.L3_Reactive_power = (FLOAT_DATA)3.3;
+	
+	sCurrentEnergy.Apparent_power = (FLOAT_DATA)4;
+	sCurrentEnergy.L1_Apparent_power = (FLOAT_DATA)4.1;
+	sCurrentEnergy.L2_Apparent_power = (FLOAT_DATA)4.2;
+	sCurrentEnergy.L3_Apparent_power = (FLOAT_DATA)4.3;
+	
+	sCurrentEnergy.Power_factor = (FLOAT_DATA)1;
+	sCurrentEnergy.L1_Power_factor = (FLOAT_DATA)0.91;
+	sCurrentEnergy.L2_Power_factor = (FLOAT_DATA)0.92;
+	sCurrentEnergy.L3_Power_factor = (FLOAT_DATA)0.93;
+	
+	
+	memcpy(&(sTotalEnergy.sLastContact), date_time, sizeof(tsDateTime));
+		
+	sTotalEnergy.Total_active_energy = (FLOAT_DATA)6;
+	sTotalEnergy.T1_Total_active_energy = (FLOAT_DATA)4;
+	sTotalEnergy.T2_Total_active_energy = (FLOAT_DATA)2;
+		
+	sTotalEnergy.L1_Total_active_energy = (FLOAT_DATA)1;
+	sTotalEnergy.L2_Total_active_energy = (FLOAT_DATA)2;
+	sTotalEnergy.L3_Total_active_energy = (FLOAT_DATA)3;
+		
+		
+	sTotalEnergy.Total_reactive_energy = (FLOAT_DATA)0.6;
+	sTotalEnergy.T1_Total_reactive_energy = (FLOAT_DATA)0.4;
+	sTotalEnergy.T2_Total_reactive_energy = (FLOAT_DATA)0.2;
+		
+	sTotalEnergy.L1_Total_reactive_energy = (FLOAT_DATA)0.1;
+	sTotalEnergy.L2_Total_reactive_energy = (FLOAT_DATA)0.2;
+	sTotalEnergy.L3_Total_reactive_energy = (FLOAT_DATA)0.3;
+}
+
+void ENERGY_METER_Loop(void){
+	if (difftime(time(NULL), sLastLoop) > 4){
+		sLastLoop = time(NULL);
+		
+		memcpy(&(sCurrentEnergy.sLastContact), date_time, sizeof(tsDateTime));
+		sCurrentEnergy.Active_power += (FLOAT_DATA)0.1;
+		AddCurrentEnergyInArray();
+	}
 }

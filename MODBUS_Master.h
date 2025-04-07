@@ -3,6 +3,8 @@
 
 extern volatile uint8_t MODBUS_Master_timer_start_RTU;
 
+extern uint8_t *ptr_to_data_read;
+extern uint16_t lenght_read;
 
 void MODBUS_Master_init(void);
 void MODBUS_Master_Loop(void);

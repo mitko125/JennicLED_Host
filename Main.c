@@ -8,7 +8,6 @@
 #include "GPRS_Uart.h"
 #include "FTDI_Uart.h"
 #include "twi_master_driver.h"
-#include "MODBUS_Master.h"
 #include "hardware.h"
 extern TWI_Master_t twiMaster;
 
@@ -60,7 +59,7 @@ void get_pin(void){
 	strcpy_s(pin,5,PIN_STR);
 }
 
-#define HOST_VERSION 0x00020000UL
+#define HOST_VERSION 0x00030000UL
 
 
 #else	// WIN32
@@ -68,12 +67,6 @@ void get_pin(void){
 
 
 #endif	//WIN32
-
-
-#ifndef WIN32
-void MODBUS_Maser_Ok_reciv(void){
-}
-#endif //WIN32
 
 int main(void){
 
@@ -334,6 +327,18 @@ int main(void){
 			case 'b':
 			case 'B':
 				key_b = 1;
+				break;
+			case 'q':
+			case 'Q':
+				PrintCurrentEnergy();
+				break;
+			case 'w':
+			case 'W':
+				PrintTotalEnergy();
+				break;
+			case 'e':
+			case 'E':
+				PrintArrayCurrenEnergy();
 				break;
 			case ' ':
 #ifdef WIN32

@@ -8,3 +8,5 @@ void get_time(void);
 void InitHardware(void);
 void save_RAM(void);
 void SetDateTime(void);
+void ENERGY_METER_init(void);
+void ENERGY_METER_Loop(void);

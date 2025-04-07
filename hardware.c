@@ -8,10 +8,12 @@
 #include "FTDI_Uart.h"
 #include "twi_master_driver.h"
 #include "MODBUS_Master.h"
+#include "EnergyMeter.h"
 
 #include "log.h"
-#include "sub.h"
 #include "def.h"
+#include "sub.h"
+
 
 #include <stdio.h>
 //#include <stdlib.h>
@@ -40,6 +42,12 @@ ISR(TCC0_OVF_vect)
 		if(	 cou_1s == 1000 ){
 			cou_1s = 0;
 			
+			if( ENERGY_METER_time_wait_s )
+				ENERGY_METER_time_wait_s --;
+				
+			if( ENERGY_METER_time_ERR_s < 200 )
+				ENERGY_METER_time_ERR_s ++;
+				
 		}else
 			cou_1s ++;
 	}else
@@ -129,7 +137,7 @@ void InitHardware(void){
 	               TWI_MASTER_INTLVL_LO_gc,
 	               TWI_BAUDSETTING);
 	
-//	MODBUS_Master_init();
+	ENERGY_METER_init();
 	
 	//прекъсване на 50us
   TCC0.PER = (uint16_t)((((F_CPU/64)*TIME)/1000000)-1);

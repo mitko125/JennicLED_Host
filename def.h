@@ -66,7 +66,11 @@ extern uint32_t time_1s;
 #define INET6_ADDRSTRLEN 46
 #endif
 
-
+#ifndef WIN32
+#define FLOAT_DATA float
+#else	//WIN32
+#define FLOAT_DATA double
+#endif	//WIN32
 
 
 /** Enumerated type of statuses */
@@ -272,6 +276,118 @@ PACKED(
 	uint32_t	u32WorkHours;
 })tsSetWorkHours;
 
+PACKED(
+	typedef struct
+{
+	tsDateTime	sLastContact;
+	
+	FLOAT_DATA L1_Voltage;
+	FLOAT_DATA L2_Voltage;
+	FLOAT_DATA L3_Voltage;
+	FLOAT_DATA Grid_frequency;
+	FLOAT_DATA L1_Current;
+	FLOAT_DATA L2_Current;
+	FLOAT_DATA L3_Current;
+	FLOAT_DATA Active_power;
+	FLOAT_DATA L1_Active_power;
+	FLOAT_DATA L2_Active_power;
+	FLOAT_DATA L3_Active_power;
+	FLOAT_DATA Reactive_power;
+	FLOAT_DATA L1_Reactive_power;
+	FLOAT_DATA L2_Reactive_power;
+	FLOAT_DATA L3_Reactive_power;
+	FLOAT_DATA Apparent_power;
+	FLOAT_DATA L1_Apparent_power;
+	FLOAT_DATA L2_Apparent_power;
+	FLOAT_DATA L3_Apparent_power;
+	FLOAT_DATA Power_factor;
+	FLOAT_DATA L1_Power_factor;
+	FLOAT_DATA L2_Power_factor;
+	FLOAT_DATA L3_Power_factor;
+})tsCurrentEnergy;
+
+PACKED(
+	typedef struct
+{
+	tsDateTime	sLastContact;
+	
+	FLOAT_DATA Total_active_energy;
+	FLOAT_DATA T1_Total_active_energy;
+	FLOAT_DATA T2_Total_active_energy;
+	FLOAT_DATA L1_Total_active_energy;
+	FLOAT_DATA L2_Total_active_energy;
+	FLOAT_DATA L3_Total_active_energy;
+	
+	FLOAT_DATA Total_reactive_energy;
+	FLOAT_DATA T1_Total_reactive_energy;
+	FLOAT_DATA T2_Total_reactive_energy;
+	FLOAT_DATA L1_Total_reactive_energy;
+	FLOAT_DATA L2_Total_reactive_energy;
+	FLOAT_DATA L3_Total_reactive_energy;
+	
+})tsTotalEnergy;
+
+
+PACKED(
+	typedef struct
+{
+	tsDateTime	DateTime;
+	
+	/*FLOAT_DATA L1_Voltage;
+	FLOAT_DATA L2_Voltage;
+	FLOAT_DATA L3_Voltage;
+	FLOAT_DATA Grid_frequency;
+	FLOAT_DATA L1_Current;
+	FLOAT_DATA L2_Current;
+	FLOAT_DATA L3_Current;*/
+	FLOAT_DATA Active_power;
+	FLOAT_DATA L1_Active_power;
+	FLOAT_DATA L2_Active_power;
+	FLOAT_DATA L3_Active_power;
+/*	FLOAT_DATA Reactive_power;
+	FLOAT_DATA L1_Reactive_power;
+	FLOAT_DATA L2_Reactive_power;
+	FLOAT_DATA L3_Reactive_power;
+	FLOAT_DATA Apparent_power;
+	FLOAT_DATA L1_Apparent_power;
+	FLOAT_DATA L2_Apparent_power;
+	FLOAT_DATA L3_Apparent_power;
+	FLOAT_DATA Power_factor;
+	FLOAT_DATA L1_Power_factor;
+	FLOAT_DATA L2_Power_factor;
+	FLOAT_DATA L3_Power_factor;*/
+	
+})tsCurrentEnergySmall;
+
+#define MAX_CURRENT_ENERGY 450
+#define MAX_SEND_CURRENT_ENEGY_ARRAY 10
+
+PACKED(
+	typedef struct
+{
+	uint16_t	NextInArray;
+	tsCurrentEnergySmall sCurrentEnergySmall[MAX_CURRENT_ENERGY];
+})tsCurrenEnegryArray;
+
+PACKED(
+typedef struct
+{
+	tsDateTime	reversDateTimeStart;
+	tsDateTime	reversDateTimeEnd;
+	uint16_t u16FirstArrayEntry;
+	uint16_t u16EntryArrayCount;
+	uint8_t u8FlagEnd;
+})tsSendEnergyArray;
+
+#define CRD2_RX_BUFFER_SIZE 1024
+#define CRD2_TX_BUFFER_SIZE 1024
+
+#define GPRS_RX_BUFFER_SIZE 1024
+#define GPRS_TX_BUFFER_SIZE 1024
+
+#define MODBUS_RX_BUFFER_SIZE 512
+#define MODBUS_TX_BUFFER_SIZE 512
+
 #define OFFSET_psModuleSetConfig 0
 #define psModuleSetConfig ((tsConfigBorderRuter *)(p_E_RAM+OFFSET_psModuleSetConfig))
 #define sModuleSetConfig (*psModuleSetConfig)
@@ -294,20 +410,29 @@ PACKED(
 #define OFFSET_u8CRD2_RX_Buf (OFFSET_sRouterStatus + sizeof(tsRouterStatus))
 #define u8CRD2_RX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8CRD2_RX_Buf))
 
-#define OFFSET_u8CRD2_TX_Buf (OFFSET_u8CRD2_RX_Buf + 1024)
+#define OFFSET_u8CRD2_TX_Buf (OFFSET_u8CRD2_RX_Buf + CRD2_RX_BUFFER_SIZE)
 #define u8CRD2_TX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8CRD2_TX_Buf))
 
-#define OFFSET_u8GPRS_RX_Buf (OFFSET_u8CRD2_TX_Buf + 1024)
+#define OFFSET_u8GPRS_RX_Buf (OFFSET_u8CRD2_TX_Buf + CRD2_TX_BUFFER_SIZE)
 #define uGPRS_RX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8GPRS_RX_Buf))
 
-#define OFFSET_u8GPRS_TX_Buf (OFFSET_u8GPRS_RX_Buf + 1024)
+#define OFFSET_u8GPRS_TX_Buf (OFFSET_u8GPRS_RX_Buf + GPRS_RX_BUFFER_SIZE)
 #define u8GPRS_TX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8GPRS_TX_Buf))
 
-#define OFFSET_u8MODBUS_RX_Buf (OFFSET_u8GPRS_TX_Buf + 1024)
+#define OFFSET_u8MODBUS_RX_Buf (OFFSET_u8GPRS_TX_Buf + GPRS_TX_BUFFER_SIZE)
 #define u8MODBUS_RX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8MODBUS_RX_Buf))
 
-#define OFFSET_u8MODBUS_TX_Buf (OFFSET_u8MODBUS_RX_Buf + 512)
+#define OFFSET_u8MODBUS_TX_Buf (OFFSET_u8MODBUS_RX_Buf + MODBUS_RX_BUFFER_SIZE)
 #define u8MODBUS_TX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8MODBUS_TX_Buf))
 
-#define END_NVM (OFFSET_u8MODBUS_TX_Buf + 512)
+#define OFFSET_sCurrentEnergy (OFFSET_u8MODBUS_TX_Buf + MODBUS_TX_BUFFER_SIZE)
+#define sCurrentEnergy (*((tsCurrentEnergy*)(p_E_RAM+OFFSET_sCurrentEnergy)))
+
+#define OFFSET_sTotalEnergy (OFFSET_sCurrentEnergy + sizeof(tsCurrentEnergy))
+#define sTotalEnergy (*((tsTotalEnergy*)(p_E_RAM+OFFSET_sTotalEnergy)))
+
+#define OFFSET_sCurrentEnergyArray (OFFSET_sTotalEnergy + sizeof(tsTotalEnergy))
+#define sCurrenEnegryArray (*((tsCurrenEnegryArray*)(p_E_RAM+OFFSET_sCurrentEnergyArray)))
+
+#define END_NVM (OFFSET_sCurrentEnergyArray + sizeof(tsCurrenEnegryArray))
 

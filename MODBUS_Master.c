@@ -6,7 +6,11 @@
 
 #include <hardware.h>
 
-#define MAX_HOLDING_REGISTER 100
+
+uint8_t *ptr_to_data_read;
+uint16_t lenght_read;
+
+//#define MAX_HOLDING_REGISTER 100
 
 //unsigned int holding_registers[MAX_HOLDING_REGISTER];
 
@@ -21,19 +25,19 @@ volatile uint8_t MODBUS_Master_timer_start_RTU; //отчита мълчание по линията за 
 #define RTU_TIMEOUT	75	//6
 
 /* \brief  Receive buffer size: 2,4,8,16,32,64,128 or 256 bytes. */
-#define USART_RX_BUFFER_SIZE 512
+//#define MODBUS_RX_BUFFER_SIZE 512
 /* \brief Transmit buffer size: 2,4,8,16,32,64,128 or 256 bytes */
-#define USART_TX_BUFFER_SIZE 512
+//#define MODBUS_TX_BUFFER_SIZE 512
 /* \brief Receive buffer mask. */
-#define USART_RX_BUFFER_MASK ( USART_RX_BUFFER_SIZE - 1 )
+#define USART_RX_BUFFER_MASK ( MODBUS_RX_BUFFER_SIZE - 1 )
 /* \brief Transmit buffer mask. */
-#define USART_TX_BUFFER_MASK ( USART_TX_BUFFER_SIZE - 1 )
+#define USART_TX_BUFFER_MASK ( MODBUS_TX_BUFFER_SIZE - 1 )
 
 
-#if ( USART_RX_BUFFER_SIZE & USART_RX_BUFFER_MASK )
+#if ( MODBUS_RX_BUFFER_SIZE & USART_RX_BUFFER_MASK )
 #error u8MODBUS_RX_Buf buffer size is not a power of 2
 #endif
-#if ( USART_TX_BUFFER_SIZE & USART_TX_BUFFER_MASK )
+#if ( MODBUS_TX_BUFFER_SIZE & USART_TX_BUFFER_MASK )
 #error u8MODBUS_TX_Buf buffer size is not a power of 2
 #endif
 
@@ -338,11 +342,12 @@ my_recived_mesage:
 			{
 				uint8_t lenght = bufer[2+MBAP_HEADER_SIZE];
 				if(ptr_to_data_in == (bufer+4+MBAP_HEADER_SIZE+lenght)){
-				/*	uint16_t *p = holding_registers + AddressReadHoldingRegisters;
-					ptr_to_data_in = bufer+3+MBAP_HEADER_SIZE;
+					//uint16_t *p = holding_registers + AddressReadHoldingRegisters;
+					ptr_to_data_read = ptr_to_data_in = bufer+3+MBAP_HEADER_SIZE;
 					if( lenght&0x01 )
 						return;
-					while(lenght){
+					lenght_read = lenght;
+			/*		while(lenght){
 						lenght -= 2;
 						unsigned int temp = ((*ptr_to_data_in++)<<8);
 						temp |= ((*ptr_to_data_in++)&0xFF);

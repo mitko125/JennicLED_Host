@@ -2,7 +2,7 @@
 #include "FTDI_Uart.h"
 #include "twi_master_driver.h"
 #include "hardware.h"
-#include "MODBUS_Master.h"
+#include "EnergyMeter.h"
 #else	//WIN32
 #include <windows.h>
 #include <conio.h>
@@ -39,7 +39,9 @@ typedef struct
     uint8_t     u8Message[2048];
 } sJennicModuleMsg;
 
+#ifndef NO_COORDINATOR
 static sJennicModuleMsg sIncomingMsg;
+#endif
 
 long time_sec_sub;
 #define T_STATE_MASHINE 3
@@ -75,22 +77,17 @@ void text(void){
 	printf_P(PSTR("\n\rJennic HOST V%d.%d.%d  Size NVM = %u bytes Free = %d bytes\n\r"),(unsigned int)(ntohl(sRouterStatus.u32HostVersion)>>16),
 		(unsigned int)((ntohl(sRouterStatus.u32HostVersion)>>8)&0xFF),(unsigned int)(ntohl(sRouterStatus.u32HostVersion)&0xFF),END_NVM,SIZE_RAM-END_NVM);
 	
-	printf_P(PSTR("1 Broadcast 1\n\r"));
-	printf_P(PSTR("2 Broadcast 127\n\r"));
-	printf_P(PSTR("3 Broadcast 255\n\r"));
-	
+	printf_P(PSTR("1 Broadcast=1,        2 Broadcast=127,        3 Broadcast=255\n\r"));
 	printf_P(PSTR("4 On/Off Relay 1\n\r"));
-
 #ifndef WIN32
-	printf_P(PSTR("5 GPRS JP6 RST\n\r"));
-	printf_P(PSTR("6 Test GPRS Uart JP6\n\r"));
-	printf_P(PSTR("7 Test CRD2 Uart JP4\n\r"));
+	printf_P(PSTR("5 GPRS JP6 RESET\n\r"));
+	printf_P(PSTR("6 Test GPRS Uart JP6,        7 Test CRD2 Uart JP4\n\r"));
 #endif //WIN32
 	printf_P(PSTR("8 Test External RAM\n\r"));
 	
 	printf_P(PSTR("9 Set time & data\n\r"));
 	
-	printf_P(PSTR("0 Jennic reset\n\r"));
+	printf_P(PSTR("0 Jennic RESET\n\r"));
 	
 	printf_P(PSTR("p Set PIN\n\r"));
 	printf_P(PSTR("t Set On/Off\n\r"));
@@ -99,6 +96,7 @@ void text(void){
 	printf_P(PSTR("v Verbosity\n\r"));
 	printf_P(PSTR("x test CRC\n\r"));
 	printf_P(PSTR("k SubTreeNodes, l NetworkTable\n\r"));
+	printf_P(PSTR("q CurrentEnergy, w TotalEnergy, e ArrayCurrentEnergy\n\r"));
 	
 #ifndef WIN32
 	printf_P(PSTR("Inputs: "));
@@ -344,10 +342,7 @@ void main_loop(void){
 	}
 #endif //NO_COORDINATOR
 
-
-#ifndef WIN32
-//	MODBUS_Master_Loop();
-#endif
+	ENERGY_METER_Loop();
 	
 	get_time();
 	
@@ -517,4 +512,94 @@ unsigned char check_crc(unsigned char *p, int len)
 	if (*p == crc)
 		return 0;
 	return 1;
+}
+
+static void PrintLastContact(tsDateTime * time){
+	put_char((time->date_time[5]>>4)+'0');put_char(((time->date_time[5])&0x0f)+'0'); put_char('-');
+	put_char((time->date_time[4]>>4)+'0');put_char(((time->date_time[4])&0x0f)+'0'); put_char('-');
+	put_char((time->date_time[3]>>4)+'0');put_char(((time->date_time[3])&0x0f)+'0'); put_char(' ');
+	
+	put_char((time->date_time[2]>>4)+'0');put_char(((time->date_time[2])&0x0f)+'0'); put_char(':');
+	put_char((time->date_time[1]>>4)+'0');put_char(((time->date_time[1])&0x0f)+'0'); put_char(':');
+	put_char((time->date_time[0]>>4)+'0');put_char(((time->date_time[0])&0x0f)+'0');
+}
+
+void PrintCurrentEnergy(void){
+	printf_P(PSTR("Last Contact "));
+	PrintLastContact(&(sCurrentEnergy.sLastContact));
+	printf_P(PSTR("\n\r"));
+	
+	printf_P(PSTR("Frequency	%f\n\r"),(FLOAT_DATA)(sCurrentEnergy.Grid_frequency));
+	printf_P(PSTR("Voltage				%f	%f	%f\n\r"),(FLOAT_DATA)(sCurrentEnergy.L1_Voltage),(FLOAT_DATA)(sCurrentEnergy.L2_Voltage),(FLOAT_DATA)(sCurrentEnergy.L3_Voltage));
+	printf_P(PSTR("Current				%f	%f	%f\n\r"),(FLOAT_DATA)(sCurrentEnergy.L1_Current),(FLOAT_DATA)(sCurrentEnergy.L2_Current),(FLOAT_DATA)(sCurrentEnergy.L3_Current));
+	printf_P(PSTR("Active_power	%f	%f	%f	%f\n\r"),(FLOAT_DATA)(sCurrentEnergy.Active_power),(FLOAT_DATA)(sCurrentEnergy.L1_Active_power),(FLOAT_DATA)(sCurrentEnergy.L2_Active_power),(FLOAT_DATA)(sCurrentEnergy.L3_Active_power));
+	printf_P(PSTR("Reactive_power	%f	%f	%f	%f\n\r"),(FLOAT_DATA)(sCurrentEnergy.Reactive_power),(FLOAT_DATA)(sCurrentEnergy.L1_Reactive_power),(FLOAT_DATA)(sCurrentEnergy.L2_Reactive_power),(FLOAT_DATA)(sCurrentEnergy.L3_Reactive_power));
+	printf_P(PSTR("Apparent_power	%f	%f	%f	%f\n\r"),(FLOAT_DATA)(sCurrentEnergy.Apparent_power),(FLOAT_DATA)(sCurrentEnergy.L1_Apparent_power),(FLOAT_DATA)(sCurrentEnergy.L2_Apparent_power),(FLOAT_DATA)(sCurrentEnergy.L3_Apparent_power));
+	printf_P(PSTR("Power_factor	%f	%f	%f	%f\n\r"),(FLOAT_DATA)(sCurrentEnergy.Power_factor),(FLOAT_DATA)(sCurrentEnergy.L1_Power_factor),(FLOAT_DATA)(sCurrentEnergy.L2_Power_factor),(FLOAT_DATA)(sCurrentEnergy.L3_Power_factor));
+}
+
+void PrintTotalEnergy(void){
+	printf_P(PSTR("Last Contact "));
+	PrintLastContact(&(sTotalEnergy.sLastContact));
+		printf_P(PSTR("\n\r"));
+	
+	printf_P(PSTR("Total_active_energy,T1,T2	%f	%f	%f\n\r"),(FLOAT_DATA)(sTotalEnergy.Total_active_energy),(FLOAT_DATA)(sTotalEnergy.T1_Total_active_energy),(FLOAT_DATA)(sTotalEnergy.T2_Total_active_energy));
+	printf_P(PSTR("Total_active_energy L1,L2,L3	%f	%f	%f\n\r"),(FLOAT_DATA)(sTotalEnergy.L1_Total_active_energy),(FLOAT_DATA)(sTotalEnergy.L2_Total_active_energy),(FLOAT_DATA)(sTotalEnergy.L3_Total_active_energy));
+	printf_P(PSTR("Total_reactive_energy,T1,T2	%f	%f	%f\n\r"),(FLOAT_DATA)(sTotalEnergy.Total_reactive_energy),(FLOAT_DATA)(sTotalEnergy.T1_Total_reactive_energy),(FLOAT_DATA)(sTotalEnergy.T2_Total_reactive_energy));
+	printf_P(PSTR("Total_reactive_energy L1,L2,L3	%f	%f	%f\n\r"),(FLOAT_DATA)(sTotalEnergy.L1_Total_reactive_energy),(FLOAT_DATA)(sTotalEnergy.L2_Total_reactive_energy),(FLOAT_DATA)(sTotalEnergy.L3_Total_reactive_energy));
+}
+
+tsDateTime	DateTimeCleared;
+static unsigned char disable_add = 0;
+void PrintArrayCurrenEnergy(void){
+	disable_add = 1;
+	printf_P(PSTR("Print Array Active Curren Energy ... kW:\n\r"));
+	int i = 0;
+	int num;
+	char flag = 0;
+	if( memcmp(&(sCurrenEnegryArray.sCurrentEnergySmall[sCurrenEnegryArray.NextInArray].DateTime),&DateTimeCleared,sizeof(tsDateTime)) != 0){
+		flag = 1;
+		i = sCurrenEnegryArray.NextInArray;
+	}
+	for( num = 1 ; ( i < sCurrenEnegryArray.NextInArray ) || flag ; num++ ){
+		printf_P(PSTR("%d "), i);//num);
+		PrintLastContact(&(sCurrenEnegryArray.sCurrentEnergySmall[i].DateTime));
+		printf_P(PSTR("	%f	%f  %f  %f\n\r"),(FLOAT_DATA)(sCurrenEnegryArray.sCurrentEnergySmall[i].Active_power),
+			(FLOAT_DATA)(sCurrenEnegryArray.sCurrentEnergySmall[i].L1_Active_power),(FLOAT_DATA)(sCurrenEnegryArray.sCurrentEnergySmall[i].L2_Active_power),
+			(FLOAT_DATA)(sCurrenEnegryArray.sCurrentEnergySmall[i].L3_Active_power));
+		if( ( i % 10 ) == 0 )
+			main_loop();
+		if( ++i >= MAX_CURRENT_ENERGY ){
+			i = 0;
+			flag = 0;
+		}
+	}
+	disable_add = 0;
+}
+
+static unsigned char old_minute = 0xff;
+void AddCurrentEnergyInArray(void){
+	//sCurrenEnegryArray.NextInArray = MAX_CURRENT_ENERGY+1 ;
+	if( disable_add )
+		return;
+	if( on_relay && (( date_time[1] & 0x0F ) == 0 ) ){	//minute %10
+		if( old_minute != date_time[1] ){
+			old_minute = date_time[1];
+			if( sCurrenEnegryArray.NextInArray < MAX_CURRENT_ENERGY ){
+				tsCurrentEnergySmall * psCurrentEnergySmall = &sCurrenEnegryArray.sCurrentEnergySmall[sCurrenEnegryArray.NextInArray];
+				memcpy(&(psCurrentEnergySmall->DateTime),&(sCurrentEnergy.sLastContact),sizeof(tsDateTime));
+				psCurrentEnergySmall->Active_power = sCurrentEnergy.Active_power;
+				psCurrentEnergySmall->L1_Active_power = sCurrentEnergy.L1_Active_power;
+				psCurrentEnergySmall->L2_Active_power = sCurrentEnergy.L2_Active_power;
+				psCurrentEnergySmall->L3_Active_power = sCurrentEnergy.L3_Active_power;
+				if( ++sCurrenEnegryArray.NextInArray >= MAX_CURRENT_ENERGY )
+					sCurrenEnegryArray.NextInArray = 0;
+				daemon_log(LOG_INFO, "AddInCurrentEnergyArray %d\n\r",sCurrenEnegryArray.NextInArray);
+			}else{
+				daemon_log(LOG_ERR, "Error sCurrentEnergySmall.NextInArray %d >= %d",sCurrenEnegryArray.NextInArray,MAX_CURRENT_ENERGY);
+				memset(&sCurrenEnegryArray,0,sizeof(tsCurrenEnegryArray));
+			}
+		}
+	}else
+		old_minute = 0xff;
 }

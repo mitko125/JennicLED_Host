@@ -1099,6 +1099,98 @@ teTunStatus eTunDeviceReadPacket(void)
 				memcpy(ipv6_buf + HEADER_SIZE + 1, (unsigned char*)&sRouterStatus, sizeof(tsRouterStatus));
 				SendPacage(HEADER_SIZE + 1 + sizeof(tsRouterStatus));
 				break;
+			case COMMAND_READ_CURRENT_ENERGY:
+				ipv6_buf[0] = (sizeof(tsCurrentEnergy) + 1) >> 8;
+				ipv6_buf[1] = (sizeof(tsCurrentEnergy) + 1) & 0xFF;
+				ipv6_buf[2] = VERSION;
+				ipv6_buf[3] = COMMAND_READ_CURRENT_ENERGY;
+				memcpy(ipv6_buf + HEADER_SIZE + 1, (unsigned char*)&sCurrentEnergy, sizeof(tsCurrentEnergy));
+				SendPacage(HEADER_SIZE + 1 + sizeof(tsCurrentEnergy));
+				break;
+			case COMMAND_READ_TOTAL_ENERGY:
+				ipv6_buf[0] = (sizeof(tsTotalEnergy) + 1) >> 8;
+				ipv6_buf[1] = (sizeof(tsTotalEnergy) + 1) & 0xFF;
+				ipv6_buf[2] = VERSION;
+				ipv6_buf[3] = COMMAND_READ_TOTAL_ENERGY;
+				memcpy(ipv6_buf + HEADER_SIZE + 1, (unsigned char*)&sTotalEnergy, sizeof(tsTotalEnergy));
+				SendPacage(HEADER_SIZE + 1 + sizeof(tsTotalEnergy));
+				break;
+			case COOMAND_GET_CURRENT_ENERGY_ARRAY:
+				{
+					static uint16_t i_array;
+					static char flag_arrray;
+					static uint16_t NextInArray;
+					uint16_t u16EntryArrayCount;
+					int cou=0;
+
+					tsSendEnergyArray * psSendEnergyArray = (tsSendEnergyArray*)(ipv6_buf + HEADER_SIZE + 1);
+					tsCurrentEnergySmall * psCurrentEnergySmall = (tsCurrentEnergySmall*)(psSendEnergyArray + 1);
+
+					if( ntohs(psSendEnergyArray->u16FirstArrayEntry) == 0 ){	//Init send array
+					/*	printf("INIT %02X-%02X-%02X %02X:%02X:%02X     %02X-%02X-%02X %02X:%02X:%02X \n\r",
+							psSendEnergyArray->reversDateTimeStart.date_time[0],psSendEnergyArray->reversDateTimeStart.date_time[1],psSendEnergyArray->reversDateTimeStart.date_time[2],
+							psSendEnergyArray->reversDateTimeStart.date_time[3],psSendEnergyArray->reversDateTimeStart.date_time[4],psSendEnergyArray->reversDateTimeStart.date_time[5],
+							psSendEnergyArray->reversDateTimeEnd.date_time[0],psSendEnergyArray->reversDateTimeEnd.date_time[1],psSendEnergyArray->reversDateTimeEnd.date_time[2],
+							psSendEnergyArray->reversDateTimeEnd.date_time[3],psSendEnergyArray->reversDateTimeEnd.date_time[4],psSendEnergyArray->reversDateTimeEnd.date_time[5]);
+							*/
+						NextInArray = sCurrenEnegryArray.NextInArray;
+						if( memcmp(&(sCurrenEnegryArray.sCurrentEnergySmall[NextInArray].DateTime),&DateTimeCleared,sizeof(tsDateTime)) != 0){
+							flag_arrray = 1;
+							i_array = NextInArray;
+						}else{
+							flag_arrray = 0;
+							i_array = 0;
+						}
+					}
+					u16EntryArrayCount = ntohs(psSendEnergyArray->u16EntryArrayCount);
+					//printf("i %d, flag %d\n\r",i_array,flag_arrray);
+					for( ; ( i_array < NextInArray ) || flag_arrray ; ){
+						unsigned char reverse_time[6];
+						reverse_time[0] = sCurrenEnegryArray.sCurrentEnergySmall[i_array].DateTime.date_time[5];
+						reverse_time[1] = sCurrenEnegryArray.sCurrentEnergySmall[i_array].DateTime.date_time[4];
+						reverse_time[2] = sCurrenEnegryArray.sCurrentEnergySmall[i_array].DateTime.date_time[3];
+						reverse_time[3] = sCurrenEnegryArray.sCurrentEnergySmall[i_array].DateTime.date_time[2];
+						reverse_time[4] = sCurrenEnegryArray.sCurrentEnergySmall[i_array].DateTime.date_time[1];
+						reverse_time[5] = sCurrenEnegryArray.sCurrentEnergySmall[i_array].DateTime.date_time[0];
+						/*printf("Current %02X-%02X-%02X %02X:%02X:%02X %d %d %d %d\n\r",
+							reverse_time[0],reverse_time[1],reverse_time[2],
+							reverse_time[3],reverse_time[4],reverse_time[5],
+							sizeof(FLOAT_DATA),sizeof(tsSendEnergyArray),sizeof(tsCurrentEnergySmall),sizeof(tsCurrenEnegryArray));			*/			
+						if( memcmp( reverse_time , &(psSendEnergyArray->reversDateTimeStart) , sizeof(tsDateTime)) < 0 )
+							goto no_add_data;
+						if( memcmp( reverse_time , &(psSendEnergyArray->reversDateTimeEnd) , sizeof(tsDateTime)) > 0 )
+							goto no_add_data;	
+						{	
+							u16EntryArrayCount--;
+							cou++;
+							memcpy(psCurrentEnergySmall, &(sCurrenEnegryArray.sCurrentEnergySmall[i_array]), sizeof(tsCurrentEnergySmall));
+							psCurrentEnergySmall++;
+						}
+				no_add_data:
+						if( ++i_array >= MAX_CURRENT_ENERGY ){
+							i_array = 0;
+							flag_arrray = 0;
+						}
+						if( u16EntryArrayCount == 0)
+							break;
+					}
+					psSendEnergyArray->u16EntryArrayCount = htons(cou);
+					if (i_array == NextInArray){
+						psSendEnergyArray->u8FlagEnd = 1;
+						//printf("END\n\r");
+					}
+
+					ipv6_buf[0] = (sizeof(tsSendEnergyArray) + (sizeof(tsCurrentEnergySmall)*cou) + 1) >> 8;
+					ipv6_buf[1] = (sizeof(tsSendEnergyArray) + (sizeof(tsCurrentEnergySmall)*cou) + 1) & 0xFF;
+					ipv6_buf[2] = VERSION;
+					ipv6_buf[3] = COOMAND_GET_CURRENT_ENERGY_ARRAY;
+					SendPacage(HEADER_SIZE + 1 + sizeof(tsSendEnergyArray) + (sizeof(tsCurrentEnergySmall)*cou));
+				}
+				break;
+			default:
+				daemon_log(LOG_ERR, "Error unknow teCommandsPC");
+				//Send NACK ???
+				break;
 			}
 		}else{
 			daemon_log(LOG_DEBUG, "BAD lenght from client:%d %d",len + HEADER_SIZE, butes_reciv>>1);
@@ -1112,7 +1204,7 @@ teTunStatus eTunDeviceReadPacket(void)
 					
   
 	len = 0;//read(tun_fd, buf, sizeof(buf));
-   if (ipv6_len > 0)
+  if (ipv6_len > 0)
     {	
 		len = ipv6_len;
 		ipv6_len = 0;

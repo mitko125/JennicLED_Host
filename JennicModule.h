@@ -74,6 +74,9 @@ typedef enum
 	SET_WORK_HOURS			= 18,
 	COMMAND_CLEAR_RAM		= 19,
 	ACK									= 20,
+	COMMAND_READ_CURRENT_ENERGY	= 21,
+	COMMAND_READ_TOTAL_ENERGY		= 22,
+	COOMAND_GET_CURRENT_ENERGY_ARRAY	= 32,
 } teCommandsPC;
 
 /****************************************************************************/

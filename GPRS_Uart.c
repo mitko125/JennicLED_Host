@@ -9,19 +9,19 @@
 
 
 /* \brief  Receive buffer size: 2,4,8,16,32,64,128 or 256 bytes. */
-#define USART_RX_BUFFER_SIZE 1024
+//#define GPRS_RX_BUFFER_SIZE 1024
 /* \brief Transmit buffer size: 2,4,8,16,32,64,128 or 256 bytes */
-#define USART_TX_BUFFER_SIZE 1024
+//#define GPRS_TX_BUFFER_SIZE 1024
 /* \brief Receive buffer mask. */
-#define USART_RX_BUFFER_MASK ( USART_RX_BUFFER_SIZE - 1 )
+#define USART_RX_BUFFER_MASK ( GPRS_RX_BUFFER_SIZE - 1 )
 /* \brief Transmit buffer mask. */
-#define USART_TX_BUFFER_MASK ( USART_TX_BUFFER_SIZE - 1 )
+#define USART_TX_BUFFER_MASK ( GPRS_TX_BUFFER_SIZE - 1 )
 
 
-#if ( USART_RX_BUFFER_SIZE & USART_RX_BUFFER_MASK )
+#if ( GPRS_RX_BUFFER_SIZE & USART_RX_BUFFER_MASK )
 #error uGPRS_RX_Buf buffer size is not a power of 2
 #endif
-#if ( USART_TX_BUFFER_SIZE & USART_TX_BUFFER_MASK )
+#if ( GPRS_TX_BUFFER_SIZE & USART_TX_BUFFER_MASK )
 #error u8GPRS_TX_Buf buffer size is not a power of 2
 #endif
 
