@@ -9,6 +9,7 @@
 #include "FTDI_Uart.h"
 #include "twi_master_driver.h"
 #include "hardware.h"
+#include "SIM900.h"
 extern TWI_Master_t twiMaster;
 
 #else //WIN32
@@ -41,6 +42,7 @@ extern TWI_Master_t twiMaster;
 #include "JennicModule.h"
 #include "TunDevice.h"
 #include "SerialLink.h"
+
 
 int num_pin = 0;
 
@@ -128,7 +130,7 @@ int main(void){
 
     /* Wait up to five seconds. */
 #ifdef WIN32
-	if ((serial_open(15, 1000000) < 0) || (eTunDeviceOpen(13/*8*/,115200L) != E_TUN_OK))
+	if ( (serial_open(15, 1000000) < 0 ) || (StartWinMyThread() < 0 ) )
   {
     goto finish;
   }
@@ -389,6 +391,10 @@ int main(void){
 				printf_P(PSTR("\n\r\n\r"));
 				break;
 #endif //WIN32
+			case 'i':
+			case 'I':
+				PrintIP_address();
+				break;
 			case 'q':
 			case 'Q':
 				PrintCurrentEnergy();

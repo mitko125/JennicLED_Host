@@ -461,7 +461,7 @@ static teModuleStatus eJennicModuleProcessMessageIPv6(uint32_t u32Length, uint8_
 	if (checksum && checksum1) {
 		daemon_log(LOG_DEBUG, "BAD Calculated checksum %04X", checksum);
 	}else if (*(pu8Data + 6) == 17) {	//UDP protocol
-		if (memcmp(pu8Data + 24, &sModuleSetConfig.sSecurityConfig.uAuthSchemeData.sRadiusPAP.sAuthServerIP, sizeof(struct in6_addr)) == 0) {
+		if (memcmp(pu8Data + 24, &psModuleSetConfig->sSecurityConfig.uAuthSchemeData.sRadiusPAP.sAuthServerIP, sizeof(struct in6_addr)) == 0) {
 			uint8_t temp[16];
 			uint32_t i;
 
@@ -650,15 +650,15 @@ static teModuleStatus eJennicModuleWriteConfig(void)
     {
    
         daemon_log(LOG_INFO, "Writing configuration to Module %d",sizeof(tsModule_ConfigV11));
-        daemon_log(LOG_INFO, "Config 15.4 Region    : %d", sModuleSetConfig.sModuleConfigV11.u8Region);
-        daemon_log(LOG_INFO, "Config 15.4 Channel   : %d", sModuleSetConfig.sModuleConfigV11.u8Channel);
-        daemon_log(LOG_INFO, "Config 15.4 PAN ID    : 0x%x", htons(sModuleSetConfig.sModuleConfigV11.u16PanID));
-        daemon_log(LOG_INFO, "Config JenNet ID      : 0x%lx", ntohl(sModuleSetConfig.sModuleConfigV11.u32NetworkID));
-        daemon_log(LOG_INFO, "Config 6LoWPAN Prefix : 0x%08lx%08lx", ntohl(sModuleSetConfig.sModuleConfigV11.u64NetworkPrefixMSB), 
-					ntohl(sModuleSetConfig.sModuleConfigV11.u64NetworkPrefixLSB));
+        daemon_log(LOG_INFO, "Config 15.4 Region    : %d", psModuleSetConfig->sModuleConfigV11.u8Region);
+        daemon_log(LOG_INFO, "Config 15.4 Channel   : %d", psModuleSetConfig->sModuleConfigV11.u8Channel);
+        daemon_log(LOG_INFO, "Config 15.4 PAN ID    : 0x%x", htons(psModuleSetConfig->sModuleConfigV11.u16PanID));
+        daemon_log(LOG_INFO, "Config JenNet ID      : 0x%lx", ntohl(psModuleSetConfig->sModuleConfigV11.u32NetworkID));
+        daemon_log(LOG_INFO, "Config 6LoWPAN Prefix : 0x%08lx%08lx", ntohl(psModuleSetConfig->sModuleConfigV11.u64NetworkPrefixMSB), 
+					ntohl(psModuleSetConfig->sModuleConfigV11.u64NetworkPrefixLSB));
 		
         /* Send the module's configuration data */
-        vSL_WriteMessage(E_SL_MSG_CONFIG, sizeof(tsModule_ConfigV11), (uint8_t*)&sModuleSetConfig.sModuleConfigV11);
+        vSL_WriteMessage(E_SL_MSG_CONFIG, sizeof(tsModule_ConfigV11), (uint8_t*)&psModuleSetConfig->sModuleConfigV11);
     }
     else
     {
@@ -678,12 +678,12 @@ static teModuleStatus eJennicModuleWriteSecurityConfig(void)
     if(PRINT_SECURITY)
     {
         char buffer[INET6_ADDRSTRLEN] = "Could not determine Security Key";
-		inet_ntop( &sModuleSetConfig.sSecurityConfig.sKey, buffer);
+		inet_ntop( &psModuleSetConfig->sSecurityConfig.sKey, buffer);
 
         daemon_log(LOG_INFO, "Enabling network security:");
         daemon_log(LOG_INFO, "Network Key           : %s", buffer);
         
-        switch (ntohl(sModuleSetConfig.sSecurityConfig.eAuthScheme))
+        switch (ntohl(psModuleSetConfig->sSecurityConfig.eAuthScheme))
         {
             case(E_AUTH_SCHEME_NONE):
                 daemon_log(LOG_INFO, "Authorisation Scheme  : None");
@@ -692,7 +692,7 @@ static teModuleStatus eJennicModuleWriteSecurityConfig(void)
             case(E_AUTH_SCHEME_RADIUS_PAP):
             {
                 char buffer[INET6_ADDRSTRLEN] = "Could not determine Security Key";
-                inet_ntop( &sModuleSetConfig.sSecurityConfig.uAuthSchemeData.sRadiusPAP.sAuthServerIP, buffer);
+                inet_ntop( &psModuleSetConfig->sSecurityConfig.uAuthSchemeData.sRadiusPAP.sAuthServerIP, buffer);
                 daemon_log(LOG_INFO, "Authorisation Scheme  : RADIUS server at %s using PAP", buffer);
                 break;
             }
@@ -707,7 +707,7 @@ static teModuleStatus eJennicModuleWriteSecurityConfig(void)
 		daemon_log(LOG_DEBUG, "Writing Module: Security Config %d", sizeof(tsSecurityConfig));
 		
     /* Send security configuration data */
-    vSL_WriteMessage(E_SL_MSG_SECURITY, sizeof(tsSecurityConfig), (uint8_t*)&sModuleSetConfig.sSecurityConfig);
+    vSL_WriteMessage(E_SL_MSG_SECURITY, sizeof(tsSecurityConfig), (uint8_t*)&psModuleSetConfig->sSecurityConfig);
 
     
     return E_MODULE_OK;
@@ -733,9 +733,9 @@ teModuleStatus eJennicModuleWriteProfile(void)
     if (u32JennicDeviceVersion >= JENNIC_VERSION(1L,1,0))
     {
         /* Version 1.1 up supports profiles */
-        daemon_log(LOG_DEBUG, "Writing Module: Set JenNet Profile (%d)", sModuleSetConfig.u8JenNetProfile & 0xff);
+        daemon_log(LOG_DEBUG, "Writing Module: Set JenNet Profile (%d)", psModuleSetConfig->u8JenNetProfile & 0xff);
         
-        vSL_WriteMessage(E_SL_MSG_PROFILE, sizeof(uint8_t), &sModuleSetConfig.u8JenNetProfile);
+        vSL_WriteMessage(E_SL_MSG_PROFILE, sizeof(uint8_t), &psModuleSetConfig->u8JenNetProfile);
     }
     return E_MODULE_OK;
 }
@@ -746,11 +746,11 @@ teModuleStatus eJennicModuleWriteFrontEndConfig(void)
     if (u32JennicDeviceVersion >= JENNIC_VERSION(1L,4,0))
     {
         /* Version 1.4 up support configuring radio frontend and antenna diversity*/
-        daemon_log(LOG_DEBUG, "Writing Module: Set Frontend (%d)", sModuleSetConfig.eRadioFrontEnd);
+        daemon_log(LOG_DEBUG, "Writing Module: Set Frontend (%d)", psModuleSetConfig->eRadioFrontEnd);
         
-        vSL_WriteMessage(E_SL_MSG_SET_RADIO_FRONTEND, sizeof(uint8_t),(uint8_t *) &sModuleSetConfig.eRadioFrontEnd);
+        vSL_WriteMessage(E_SL_MSG_SET_RADIO_FRONTEND, sizeof(uint8_t),(uint8_t *) &psModuleSetConfig->eRadioFrontEnd);
         
-        if (sModuleSetConfig.iAntennaDiversity)
+        if (psModuleSetConfig->iAntennaDiversity)
         {
             daemon_log(LOG_DEBUG, "Writing Module: Enabling Antenna Diversity");
             
@@ -921,7 +921,7 @@ teModuleStatus eJennicModuleStateMachine(uint8_t bTimeout)
 									 /* Fall through to next state if we know the version of border router node */
 
 	case (E_STATE_CONFIGURE_NETWORK) :
-			if (sModuleSetConfig.sModuleConfigV11.u64NetworkPrefixMSB == 0){
+			if (psModuleSetConfig->sModuleConfigV11.u64NetworkPrefixMSB == 0){
 				eModuleState = E_STATE_IDLE;
 				daemon_log(LOG_CRIT, "BAD config");
 				break;
@@ -933,7 +933,7 @@ teModuleStatus eJennicModuleStateMachine(uint8_t bTimeout)
             break;
         
         case (E_STATE_CONFIGURE_SECURITY):
-            if (sModuleSetConfig.sSecurityConfig.eAuthScheme != htonl(E_AUTH_SCHEME_NONE))
+            if (psModuleSetConfig->sSecurityConfig.eAuthScheme != htonl(E_AUTH_SCHEME_NONE))
             {
                 eJennicModuleWriteSecurityConfig();
             }
@@ -1078,7 +1078,7 @@ teModuleStatus eJennicModuleStart(void)
 
 	//if ( eModuleState >= E_STATE_START_MODULE)
 		eJennicModuleReset();
-	if( sModuleSetConfig.sModuleConfigV11.u64NetworkPrefixMSB == 0 )
+	if( psModuleSetConfig->sModuleConfigV11.u64NetworkPrefixMSB == 0 )
 		eModuleState = E_STATE_IDLE;
 	else
 		eModuleState = E_STATE_DETERMINE_VERSION;
@@ -1127,7 +1127,7 @@ static teModuleStatus eJennicModuleProcessMessageConfig(uint32_t u32Length, uint
             
 		daemon_log(LOG_INFO, "Received configuration from Module");
 
-        //if (memcmp(&sModuleGetConfig.sModuleConfigV11, &sModuleSetConfig.sModuleConfigV11, sizeof(tsModule_ConfigV11)))
+        //if (memcmp(&sModuleGetConfig.sModuleConfigV11, &psModuleSetConfig->sModuleConfigV11, sizeof(tsModule_ConfigV11)))
         {
 			uint64_t u64NewPrefix;
 

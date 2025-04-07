@@ -3,6 +3,7 @@ extern unsigned char error_clock;
 extern uint8_t on_relay;
 extern long time_sec_sub;
 extern tsDateTime	DateTimeCleared;
+extern sin_addr My_sIP4addres,Clients_sIP4addres[];
 
 void text(void);
 void main_loop(void);
@@ -21,3 +22,5 @@ void PrintTotalEnergy(void);
 void AddCurrentEnergyInArray(void);
 void PrintArrayCurrenEnergy(void);
 void PrintDateTime(uint8_t * data);
+void PrintIP_address(void);
+uint32_t my_inet_addr(uint8_t * text);

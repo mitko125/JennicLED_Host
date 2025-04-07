@@ -76,7 +76,11 @@ typedef enum
 	ACK									= 20,
 	COMMAND_READ_CURRENT_ENERGY	= 21,
 	COMMAND_READ_TOTAL_ENERGY		= 22,
-	COOMAND_GET_CURRENT_ENERGY_ARRAY	= 32,
+	//V7
+	GET_MY_IP_FROM_SERVER = 23,	
+	SET_MY_IP_TO_CLIENT = 24,
+	COOMAND_GET_CURRENT_ENERGY_ARRAY	= 32,		//V3 трябваше да е 23 но е сгрешено и е по обекти, да се заемат по-ниски номера
+
 } teCommandsPC;
 
 /****************************************************************************/
@@ -108,7 +112,7 @@ typedef enum
 /****************************************************************************/
 
 
-#define JENNIC_PORT 0x0751
+#define JENNIC_PORT 0x0751	//1873
 
 
 

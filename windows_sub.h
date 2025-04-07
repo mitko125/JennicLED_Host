@@ -4,6 +4,8 @@
 
 extern unsigned char * p_E_RAM;
 
+extern uint8_t t_min_no_connect;
+
 void get_time(void);
 void InitHardware(void);
 void save_RAM(void);
@@ -11,3 +13,7 @@ void SetDateTime(void);
 void ENERGY_METER_init(void);
 void ENERGY_METER_Loop(void);
 void ResetSIM(void);
+uint8_t StartWinMyThread(void);
+void SendPacage(int len);
+void SendPacageToPC_Client(int len);
+void SimLoop(void);

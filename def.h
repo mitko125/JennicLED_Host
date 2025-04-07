@@ -1,6 +1,31 @@
 #undef NO_COORDINATOR
 
+#ifdef __GNUC__
+#define PACKED( class_to_pack ) class_to_pack __attribute__((__packed__))
+#else
+#define PACKED( class_to_pack ) __pragma( pack(push, 1) ) class_to_pack __pragma( pack(pop) )
+#endif
 
+#define MAX_TCP_IP4_CLIENTS 8
+struct S_un_b {
+	uint8_t s_b1;
+	uint8_t s_b2;
+	uint8_t s_b3;
+	uint8_t s_b4;
+};
+
+struct S_un {
+	union {
+		struct S_un_b S_un_b;
+		uint32_t S_addr;
+	};
+};
+
+PACKED(
+	typedef struct
+{
+	struct S_un S_un;
+})sin_addr;
 
 struct in6_addr {
 	union {
@@ -56,12 +81,6 @@ typedef uint32_t time_t;
 extern uint32_t time_1s;
 #define time(A) time_1s
 #endif	//WIN32
-
-#ifdef __GNUC__
-#define PACKED( class_to_pack ) class_to_pack __attribute__((__packed__))
-#else
-#define PACKED( class_to_pack ) __pragma( pack(push, 1) ) class_to_pack __pragma( pack(pop) )
-#endif
 
 #ifndef INET6_ADDRSTRLEN
 #define INET6_ADDRSTRLEN 46
@@ -390,7 +409,6 @@ typedef struct
 
 #define OFFSET_psModuleSetConfig 0
 #define psModuleSetConfig ((tsConfigBorderRuter *)(p_E_RAM+OFFSET_psModuleSetConfig))
-#define sModuleSetConfig (*psModuleSetConfig)
 
 #define OFFSET_psTimers (OFFSET_psModuleSetConfig + sizeof(tsConfigBorderRuter) + 1 )	// + 1	crc psModuleSetConfig
 #define psTimers ((tsTimers*)(p_E_RAM+OFFSET_psTimers))
@@ -434,5 +452,9 @@ typedef struct
 #define OFFSET_sCurrentEnergyArray (OFFSET_sTotalEnergy + sizeof(tsTotalEnergy))
 #define sCurrenEnegryArray (*((tsCurrenEnegryArray*)(p_E_RAM+OFFSET_sCurrentEnergyArray)))
 
-#define END_NVM (OFFSET_sCurrentEnergyArray + sizeof(tsCurrenEnegryArray))
+#define OFFSET_psServerIP (OFFSET_sCurrentEnergyArray + sizeof(tsCurrenEnegryArray))
+#define psServerIP ((sin_addr*)(p_E_RAM+OFFSET_psServerIP))
+
+
+#define END_NVM (OFFSET_psServerIP + sizeof(sin_addr))
 

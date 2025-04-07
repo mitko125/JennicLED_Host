@@ -10,14 +10,10 @@
 
 extern char pin[];
 
-extern uint8_t key_a,key_b,key_c;
-void PrintSimState(void);
-void SetSimState(uint8_t new_state);
-void SendOnlyCommand(uint8_t new_state);
-void SendTextCommand(uint8_t *text);
-void ResetSIM(void);
-extern uint8_t t_min_no_connect;
-extern volatile uint16_t time_sleep_SIM;
+#define SIZE_ipv6_buf 2048
+extern unsigned char ipv6_buf[SIZE_ipv6_buf];
+
+extern volatile unsigned int butes_reciv;
 
 #if defined __cplusplus
 extern "C" {
@@ -62,13 +58,6 @@ typedef enum
 /****************************************************************************/
 
 
-/** Open tun device
- *  \param dev          Name of device to create
- *  \return E_TUN_OK if opened ok
- */
-teTunStatus eTunDeviceOpen(int port, uint32_t baud);
-
-
 /** Read available data from the tun device
  *  \return E_TUN_OK if all ok
  */
@@ -81,8 +70,6 @@ teTunStatus eTunDeviceReadPacket(void);
  *  \return E_TUN_OK if data written ok
  */
 teTunStatus eTunDeviceWritePacket(uint32_t u32Length, uint8_t *pu8Data);
-
-void TunLoop(void);
 
 /****************************************************************************/
 /***        Local Functions                                               ***/

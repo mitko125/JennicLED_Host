@@ -38,8 +38,12 @@
 #V6 поправени незначителни грешки.	Инсталирани са 13 броя в Средец
 #разширен набор на ръчни команди 'j','J' към SIM картите и 'm','M' за ръчно въвеждане на AT команди
 
+#V7 отделеное е от TunDevice за windows в windows_sub а за SIM900 в SIM900
+#започнато е подготовка концентратора да е клиент на PC сървър: My_sIP4addres,Clients_sIP4addres[]
+#направено е регистрирането на PC сървър SET_MY_IP_TO_CLIENT psServerIP и пращане на съобщение към сървъра
+
 #HOST_VERSION = 0x00010100UL
-HOST_VERSION = 0x00060000UL
+HOST_VERSION = 0x00070000UL
 
 MCU = atxmega128a1
 
@@ -61,7 +65,7 @@ TARGET = TestHost
 
 # List C source files here. (C dependencies are automatically generated.)
 SRC = Main.c SerialLink.c JennicModule.c TunDevice.c sub.c
-SRC += clksys_driver.c eeprom_driver.c ebi_driver.c twi_master_driver.c CRD2_Uart.c GPRS_Uart.c FTDI_Uart.c hardware.c MODBUS_Master.c EnergyMeter.c
+SRC += clksys_driver.c eeprom_driver.c ebi_driver.c twi_master_driver.c CRD2_Uart.c GPRS_Uart.c FTDI_Uart.c hardware.c MODBUS_Master.c EnergyMeter.c SIM900.c
 #spi_driver.c
 
 # List Assembler source files here.

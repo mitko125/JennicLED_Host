@@ -1,14 +1,16 @@
 #include <windows.h>
-#include <process.h> 
-#include <time.h>
-#include <conio.h>
+#include <process.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <time.h>
+#include <stdint.h>
+#include <conio.h>
 #include <sys/stat.h>
 #include <signal.h>
 #include "Serial.h"
-#include <stdint.h>
+#include <winsock.h>
+//#include <winsock2.h>
 //#include <afxdisp.h>
 #include "windows_sub.h"
 
@@ -19,6 +21,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "TunDevice.h"
+#include "JennicModule.h"
 
 
 unsigned char * p_E_RAM = NULL;
@@ -200,3 +205,255 @@ void ENERGY_METER_Loop(void){
 		}
 	}
 }
+
+
+
+// макрос для печати количества активных пользователей
+#define PRINTNUSERS if (nclients) {daemon_log(LOG_DEBUG,"%d user on-line\n", nclients);} \
+        else {daemon_log(LOG_DEBUG,"No User on line\n");}
+// глобальная переменная - количество активных пользователей
+volatile int nclients = 0;
+volatile int last_clients = 0;
+
+SOCKET my_sock[MAX_TCP_IP4_CLIENTS];
+
+static volatile unsigned char thread_ok = 0;
+// прототип функции, обслуживающий подключившихся пользователей
+int SexToClient(int * client);
+
+int MyThread(void *p) {
+	{
+		WSADATA WSAData;
+		
+		// Initialize winsock dll
+		if(WSAStartup(MAKEWORD(1, 0), &WSAData))//if (::WSAStartup(MAKEWORD(1, 0), &WSAData))
+		{
+			// Error handling
+			daemon_log(LOG_ERR, "Error WSAStartup");
+		}
+		
+		// Get local host name
+		char szHostName[128] = "";
+		
+		if(gethostname(szHostName, sizeof(szHostName))) //if(::gethostname(szHostName, sizeof(szHostName)))
+		{
+			// Error handling -> call 'WSAGetLastError()'
+			daemon_log(LOG_ERR, "Error gethostname");
+		}
+		
+		// Get local IP addresses
+		struct sockaddr_in SocketAddress;
+		struct hostent     *pHost        = 0;
+		
+		pHost = gethostbyname(szHostName);//::gethostbyname(szHostName);
+		if(!pHost)
+		{
+			// Error handling -> call 'WSAGetLastError()'
+			daemon_log(LOG_ERR, "Error gethostbyname");
+		}
+		
+		char aszIPAddresses[16]; // maximum of ten IP addresses
+		
+		int iCnt;
+		for(iCnt = 0; ((pHost->h_addr_list[iCnt]) && (iCnt < 10)); ++iCnt)
+		{
+			memcpy(&SocketAddress.sin_addr, pHost->h_addr_list[iCnt], pHost->h_length);
+			strcpy(aszIPAddresses, inet_ntoa(SocketAddress.sin_addr));
+			daemon_log(LOG_DEBUG, "My IP %d:%s",iCnt,aszIPAddresses);
+		}
+		
+		// Cleanup
+		WSACleanup();
+	}
+	
+	char buff[1024]; // Буфер для различных нужд
+
+	// Шаг 1 - Инициализация Библиотеки Сокетов
+	// т.к. возвращенная функцией информация не используется
+	// ей передается указатель на рабочий буфер, преобразуемый к указателю
+	// на структуру WSADATA.
+	// Такой прием позволяет сэкономить одну переменную, однако, буфер
+	// должен быть не менее полкилобайта размером (структура WSADATA
+	// занимает 400 байт)
+	if (WSAStartup(0x0202, (WSADATA *)&buff[0]))
+	{
+		// Ошибка!
+		daemon_log(LOG_ERR, "Error WSAStartup %d", WSAGetLastError());
+		return -1;
+	}
+
+	// Шаг 2 - создание сокета
+	SOCKET mysocket;
+	// AF_INET - сокет Интернета
+	// SOCK_STREAM - потоковый сокет (с установкой соединения)
+	// 0 - по умолчанию выбирается TCP протокол
+	if ((mysocket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	{
+		// Ошибка!
+		daemon_log(LOG_ERR, "Error socket %d", WSAGetLastError());
+		WSACleanup(); // Деиницилизация библиотеки Winsock
+		return -1;
+	}
+
+	// Шаг 3 - связывание сокета с локальным адресом
+	struct sockaddr_in local_addr;
+	local_addr.sin_family = AF_INET;
+	local_addr.sin_port = htons(JENNIC_PORT); // не забываем о сетевом порядке!!!
+	local_addr.sin_addr.s_addr = 0; // сервер принимает подключения
+									// на все свои IP-адреса
+
+									// вызываем bind для связывания
+	if (bind(mysocket, (struct sockaddr *)&local_addr, sizeof(local_addr)))
+	{
+		// Ошибка
+		daemon_log(LOG_ERR, "Error bind %d", WSAGetLastError());
+		closesocket(mysocket); // закрываем сокет!
+		WSACleanup();
+		return -1;
+	}
+
+	// Шаг 4 - ожидание подключений
+	// размер очереди - MAX_TCP_IP4_CLIENTS
+	if (listen(mysocket, MAX_TCP_IP4_CLIENTS))
+	{
+		// Ошибка
+		daemon_log(LOG_ERR, "Error listen %d", WSAGetLastError());
+		closesocket(mysocket);
+		WSACleanup();
+		return -1;
+	}
+
+	daemon_log(LOG_DEBUG, "Wait clients");
+
+	// Шаг 5 - извлекаем сообщение из очереди
+	SOCKET client_socket; // сокет для клиента
+	struct sockaddr_in client_addr; // адрес клиента (заполняется системой)
+
+									// функции accept необходимо передать размер структуры
+	int client_addr_size = sizeof(client_addr);
+
+	thread_ok = 1;
+
+	// цикл извлечения запросов на подключение из очереди
+	while ((client_socket = accept(mysocket, (struct sockaddr *)&client_addr, \
+		&client_addr_size)))
+	{
+		if( nclients < MAX_TCP_IP4_CLIENTS ){
+			my_sock[last_clients = nclients] = client_socket;
+			nclients++; // увеличиваем счетчик подключившихся клиентов
+
+					// пытаемся получить имя хоста
+			HOSTENT *hst;
+			hst = gethostbyaddr((char *)&client_addr.sin_addr.s_addr, 4, AF_INET);
+
+			// вывод сведений о клиенте
+			Clients_sIP4addres[last_clients].S_un.S_addr = my_inet_addr(inet_ntoa(client_addr.sin_addr));
+			
+			daemon_log(LOG_DEBUG,"+%s [%s] new connect!\n",
+				(hst) ? hst->h_name : "", inet_ntoa(client_addr.sin_addr));
+			PRINTNUSERS
+
+			// Вызов нового потока для обслужвания клиента
+			// Да, для этого рекомендуется использовать _beginthreadex
+			// но, поскольку никаких вызовов функций стандартной Си библиотеки
+			// поток не делает, можно обойтись и CreateThread
+
+			_beginthread(SexToClient, 0, &last_clients);
+		}else{
+			// закрываем сокет
+			closesocket(client_socket);
+			daemon_log(LOG_ERR, "Too much TCP clients > %d\n", MAX_TCP_IP4_CLIENTS);
+		}
+	}
+	return 0;
+}
+
+
+
+ 
+
+
+
+
+
+
+// Эта функция создается в отдельном потоке
+// и обсуживает очередного подключившегося клиента независимо от остальных
+int SexToClient(int * client)
+{
+	int num_client = *client;
+
+	// цикл эхо-сервера: прием строки от клиента и возвращение ее клиенту
+	int bytes_r = 0;
+	while ((bytes_r = recv(my_sock[num_client], &ipv6_buf[0], SIZE_ipv6_buf , 0)) && bytes_r != SOCKET_ERROR) {
+		//send(my_sock, &buff[0], bytes_recv, 0);
+		ipv6_buf[bytes_r] = 0;
+		daemon_log(LOG_DEBUG, "From client TCP/IP:%s", ipv6_buf);
+		butes_reciv = bytes_r;
+	}
+
+	// если мы здесь, то произошел выход из цикла по причине
+	// возращения функцией recv ошибки - соединение с клиентом разорвано
+ 	nclients--; // уменьшаем счетчик активных клиентов
+	Clients_sIP4addres[num_client].S_un.S_addr = 0;
+
+	daemon_log(LOG_DEBUG, "-disconnect\n"); 
+	PRINTNUSERS
+
+	// закрываем сокет
+	closesocket(my_sock[num_client]);
+	my_sock[num_client] = 0;
+	return 0;
+}
+
+uint8_t StartWinMyThread(void)
+{
+	_beginthread(MyThread,0, NULL);
+	while (thread_ok == 0);
+
+  daemon_log(LOG_DEBUG, "Opened COM in tun device");
+
+  return 0;	//>=0 O'K
+}
+
+void SendPacageToPC_Client(int len)
+{
+	last_clients = 7;
+	SendPacage(len);
+}
+
+void SendPacage(int len)
+{
+	if (my_sock[last_clients]) {
+		unsigned char buff[2048 * 2], data;
+		int i;
+		for (i = 0; i < len; i++) {
+			data = ipv6_buf[i];
+			data >>= 4; data &= 0xF;
+			if (data < 10) data += '0';	else	data += 'A' - 10;
+			buff[(i << 1)] = data;
+
+			data = ipv6_buf[i];
+			data &= 0xF;
+			if (data < 10) data += '0';	else	data += 'A' - 10;
+			buff[(i << 1) + 1] = data;
+		}
+		int sended = 0;
+		do {
+			sended = send(my_sock[last_clients], buff + sended, (len << 1) - sended, 0);
+			if (sended <= 0) {
+				daemon_log(LOG_ERR, "Error send socket %d", WSAGetLastError());
+				return;
+			}
+		} while (sended != (len << 1));
+		daemon_log(LOG_DEBUG, "To client %d sended %d * 2 bytes", last_clients, len);
+	}
+}
+
+void SimLoop(void){
+	;
+}
+
+
+//Фиктивни от SIM900
+uint8_t t_min_no_connect = 0;

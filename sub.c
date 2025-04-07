@@ -3,6 +3,7 @@
 #include "twi_master_driver.h"
 #include "hardware.h"
 #include "EnergyMeter.h"
+#include "SIM900.h"
 #else	//WIN32
 #include <windows.h>
 #include <conio.h>
@@ -22,6 +23,7 @@
 #include "JennicModule.h"
 #include "TunDevice.h"
 #include "SerialLink.h"
+
 
 //#undef LOG_DEBUG
 //#define LOG_DEBUG 6
@@ -94,7 +96,7 @@ void text(void){
 #endif //WIN32
 	printf_P(PSTR("t Set On/Off\n\r"));
 #ifndef WIN32
-	printf_P(PSTR("test   GPRS a-AT, b-AT+CIPSERVER?, c-AT+CIPSTATUS, d-LastDateTime\n\r"));
+	printf_P(PSTR("test   GPRS a-AT, b-AT+CIPSERVER?, c-AT+CIPSTATUS, d-LastDateTime, i-IP\n\r"));
 	printf_P(PSTR("status GPRS g-GetSimState, s-SetSimState, j-SendOnlyCommand, m-ManualSend\n\r"));
 #endif //WIN32
 	printf_P(PSTR("r RADIUS table\n\r"));
@@ -317,9 +319,8 @@ void main_loop(void){
 
 #ifndef WIN32
 	wdt_reset();
+	SimLoop();
 #endif
-	
-	TunLoop();
 
 #ifndef NO_COORDINATOR
   if(bSL_ReadMessage(&sIncomingMsg.u8Type, &sIncomingMsg.u16Length, sizeof(sIncomingMsg.u8Message), sIncomingMsg.u8Message)) {
@@ -394,19 +395,19 @@ void main_loop(void){
 				uint8_t INT_hour,INT_minute;
 				INT_hour = BCD_INT(date_time[2]);
 				INT_minute = BCD_INT(date_time[1]);
-				//printf("%02d:%02d %d %d %02d:%02d %d\n\r", INT_hour, INT_minute, old_resetGPRShours, old_resetGPRSminuts, sModuleSetConfig.u8INT_resetGPRShours, sModuleSetConfig.u8INT_resetGPRSminuts, sModuleSetConfig.u8EnableEnergyMeter);
-				if( sModuleSetConfig.u8INT_resetGPRShours ){
+				//printf("%02d:%02d %d %d %02d:%02d %d\n\r", INT_hour, INT_minute, old_resetGPRShours, old_resetGPRSminuts, psModuleSetConfig->u8INT_resetGPRShours, psModuleSetConfig->u8INT_resetGPRSminuts, psModuleSetConfig->u8EnableEnergyMeter);
+				if( psModuleSetConfig->u8INT_resetGPRShours ){
 					if( old_resetGPRShours != INT_hour ){
-						if( ( INT_hour % sModuleSetConfig.u8INT_resetGPRShours ) == 0 ){
-							if( sModuleSetConfig.u8INT_resetGPRSminuts == INT_minute ){
+						if( ( INT_hour % psModuleSetConfig->u8INT_resetGPRShours ) == 0 ){
+							if( psModuleSetConfig->u8INT_resetGPRSminuts == INT_minute ){
 								old_resetGPRShours = INT_hour;
 								ResetSIM();
 							}
 						}
 					}
-				}else if( sModuleSetConfig.u8INT_resetGPRSminuts ){
+				}else if( psModuleSetConfig->u8INT_resetGPRSminuts ){
 					if( old_resetGPRSminuts != INT_minute ){
-						if( ( INT_minute % sModuleSetConfig.u8INT_resetGPRSminuts ) == 0 ){
+						if( ( INT_minute % psModuleSetConfig->u8INT_resetGPRSminuts ) == 0 ){
 							old_resetGPRSminuts = INT_minute;
 							ResetSIM();
 						}
@@ -626,4 +627,35 @@ void AddCurrentEnergyInArray(void){
 		}
 	}else
 		old_minute = 0xff;
+}
+
+sin_addr My_sIP4addres;
+sin_addr Clients_sIP4addres[MAX_TCP_IP4_CLIENTS];
+
+void PrintIP_address(void)
+{
+	uint8_t i;
+	printf_P(PSTR("\n\rMy  IP \"%d.%d.%d.%d\"\n\r\n\r"),My_sIP4addres.S_un.S_un_b.s_b1,My_sIP4addres.S_un.S_un_b.s_b2,
+		My_sIP4addres.S_un.S_un_b.s_b3,My_sIP4addres.S_un.S_un_b.s_b4);	
+	for( i = 0 ; i < MAX_TCP_IP4_CLIENTS ; i++ )
+		printf_P(PSTR("C %d IP \"%d.%d.%d.%d\"\n\r"),i,Clients_sIP4addres[i].S_un.S_un_b.s_b1,Clients_sIP4addres[i].S_un.S_un_b.s_b2,
+			Clients_sIP4addres[i].S_un.S_un_b.s_b3,Clients_sIP4addres[i].S_un.S_un_b.s_b4);	
+			
+	printf_P(PSTR("\n\r"));
+}
+
+uint32_t my_inet_addr(uint8_t * text){
+	sin_addr IP4address;
+	int d1,d2,d3,d4;
+	uint8_t c;
+
+	sscanf((char*)text,"%d%c%d%c%d%c%d",&d1,&c,&d2,&c,&d3,&c,&d4);
+	
+	IP4address.S_un.S_un_b.s_b1=d1;
+	IP4address.S_un.S_un_b.s_b2=d2;
+	IP4address.S_un.S_un_b.s_b3=d3;
+	IP4address.S_un.S_un_b.s_b4=d4;
+	//"1922.168.1.101"  запълване s_b1,s_b2,s_b3,s_b4 долните числа трябва да са еднакви трябва да са еднакво подредени
+	//printf("\r\n%08lX %02X %02X %02X %02X\r\n",IP4address.S_un.S_addr,IP4address.S_un.S_un_b.s_b4,IP4address.S_un.S_un_b.s_b3,IP4address.S_un.S_un_b.s_b2,IP4address.S_un.S_un_b.s_b1);
+	return IP4address.S_un.S_addr;
 }
