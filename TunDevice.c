@@ -410,8 +410,99 @@ void SimRead(unsigned char *pBuf, int lenght) {
 }
 
 static uint8_t fl_test_connect = 0;
+static uint8_t fl_reject_resetSIM = 0;
 
 static uint8_t first_time = 1;
+
+void ResetSIM(void){
+	if (verbosity >= LOG_DEBUG) {
+		printf_P(PSTR("\n\rReset SIM in Time: "));
+		PrintDateTime(date_time);
+		printf_P(PSTR("\n\r"));
+	}
+	if( fl_reject_resetSIM ){
+		fl_reject_resetSIM = 0;
+		if (verbosity >= LOG_DEBUG) {
+			printf_P(PSTR("Reject last client in Time: "));
+			PrintDateTime(&sRouterStatus.sDateTimeLastClient.date_time[0]);
+			printf_P(PSTR("\n\r"));
+		}
+		return;
+	}
+/*	if( state < BAD_PIN ){
+		daemon_log(LOG_DEBUG, "Reject state=%d < BAD_PIN",state);
+		return;
+	}*/
+	{
+		daemon_log(LOG_DEBUG, "Off SIM");
+		PORT_GPRS_RST.OUTSET = GPRS_RST;
+		SleepSIM(1000);
+		PORT_GPRS_RST.OUTCLR = GPRS_RST;
+	
+		cli();	//__disable_interrupt();
+		time_sleep_SIM = 10000;
+		sei();	//__enable_interrupt();
+		no_SimLoop = 1;
+		recived = 0;
+		while(time_sleep_SIM){
+			main_loop();
+			uint8_t u8Data;
+			while (sim_serial_read(&u8Data)) {
+				if( recived < MAX_RECIV )
+					buffer[recived] = u8Data;
+				recived++;
+				cli();	//__disable_interrupt();
+				time_sleep_SIM = 2000;
+				sei();	//__enable_interrupt();
+			}
+		}
+		if (recived) {
+			buffer[recived] = 0;
+			daemon_log(LOG_DEBUG, "From SIM:%s",buffer);
+			recived = 0;
+		}
+		no_SimLoop = 0;
+		
+		daemon_log(LOG_DEBUG, "On SIM");
+		PORT_GPRS_RST.OUTSET = GPRS_RST;
+		SleepSIM(1000);
+		PORT_GPRS_RST.OUTCLR = GPRS_RST;
+		
+		cli();	//__disable_interrupt();
+		time_sleep_SIM = 10000;
+		sei();	//__enable_interrupt();
+		no_SimLoop = 1;
+		recived = 0;
+		while(time_sleep_SIM){
+			main_loop();
+			uint8_t u8Data;
+			while (sim_serial_read(&u8Data)) {
+				if( recived < MAX_RECIV )
+					buffer[recived] = u8Data;
+				recived++;
+				cli();	//__disable_interrupt();
+				time_sleep_SIM = 200;
+				sei();	//__enable_interrupt();
+			}
+		}
+		if (recived) {
+			buffer[recived] = 0;
+			daemon_log(LOG_DEBUG, "From SIM:%s",buffer);
+			recived = 0;
+		}
+		no_SimLoop = 0;
+		
+		cli();	//__disable_interrupt();
+		time_sleep_SIM = T_WAIT_PACKET;
+		sei();	//__enable_interrupt();
+	
+		fl_test_connect = 0;
+		t_min_no_connect = 0;
+		fl_read = 0;
+	
+		state = AT_test;
+	}
+}
 
 void On_off_SIM(void){
 	
@@ -425,22 +516,18 @@ void On_off_SIM(void){
 	daemon_log(LOG_DEBUG, "On/Off SIM");
 	fl_test_connect = 0;
 	t_min_no_connect = 0;
+	fl_read = 0;
 	
 	state = AT_test;
 	
-#ifndef WIN32
 	PORT_GPRS_RST.OUTSET = GPRS_RST;
-	
 	SleepSIM(1000);
-
 	PORT_GPRS_RST.OUTCLR = GPRS_RST;
 	
 	cli();	//__disable_interrupt();
 	time_sleep_SIM = T_WAIT_PACKET;
 	sei();	//__enable_interrupt();
-			
-#endif	//WIN32
-		
+
 }
 
 void LoopRead(void) {
@@ -619,6 +706,7 @@ void LoopRead(void) {
 						daemon_log(LOG_DEBUG, "From client SIM:%s", ipv6_buf);
 					butes_reciv = 	to_reciv;
 					memcpy(&(sRouterStatus.sDateTimeLastClient), date_time, sizeof(tsDateTime));
+					fl_reject_resetSIM = 1;
 	
 					to_reciv = 0;
 					recived = 0;
@@ -682,8 +770,11 @@ void LoopRead(void) {
 }
 
 void SendOnlyCommand(uint8_t new_state){
-	if( new_state > Opened )
+	if( new_state > Opened ){
+		printf("\n\rError state\n\r");
 		return;
+	}else
+		printf("\n\r");
 	switch( new_state ){
 		case AT_test:
 		{
@@ -772,6 +863,7 @@ void SendOnlyCommand(uint8_t new_state){
 		}
 		break;
 		case BAD_PIN:
+			printf("Not to sim write\n\r");
 			break;
 		case TO_Open:
 		{
@@ -782,6 +874,7 @@ void SendOnlyCommand(uint8_t new_state){
 		break;
 		case Opened:
 		{
+			printf("Not to sim write\n\r");
 			SimRead(buffer, sizeof(buffer));
 		}
 		break;
@@ -789,8 +882,11 @@ void SendOnlyCommand(uint8_t new_state){
 }
 
 void SetSimState(uint8_t new_state){
-	if( new_state > Opened )
+	if( new_state > Opened ){
+		printf("\n\rError state\n\r");
 		return;
+	}else
+		printf("\n\r");
 	switch( state = new_state ){
 		case AT_test:
 		{
@@ -879,6 +975,7 @@ void SetSimState(uint8_t new_state){
 		}
 		break;
 		case BAD_PIN:
+			printf("Not to sim write\n\r");
 			break;
 		case TO_Open:
 		{
@@ -889,6 +986,7 @@ void SetSimState(uint8_t new_state){
 		break;
 		case Opened:
 		{
+			printf("Not to sim write\n\r");
 			SimRead(buffer, sizeof(buffer));
 		}
 		break;
@@ -1196,6 +1294,7 @@ teTunStatus eTunDeviceReadPacket(void)
 						if( ( u16FirstTableEntry + i ) < ROUTE_TABLE_ENTRIES ){
 							memcpy(&((psLampTable + u16FirstTableEntry + i)->sLampStatus.sMAC_Address.MAC[0]), psMAC_Address, sizeof(tsMAC_Address));
 							memset(&((psLampTable + u16FirstTableEntry + i)->sLampStatus.sLastContacts), 0, sizeof(tsDateTime));
+							memset(&((psLampTable + u16FirstTableEntry + i)->sLampStatus.u32WorkHours), 0, sizeof(uint32_t));
 						}
 						psMAC_Address++;
 					}
@@ -1255,7 +1354,8 @@ teTunStatus eTunDeviceReadPacket(void)
 				SendPacage(HEADER_SIZE + 1 + sizeof(tsTimers));
 				break;
 			case COMMAND_SET_TIMERS:
-				memcpy(psTimers, ipv6_buf + HEADER_SIZE + 1, sizeof(tsTimers));
+				memset(psTimers, 0, sizeof(tsTimers));	//V5 при SET... първо нулираме а после взимаме len-1 данни
+				memcpy(psTimers, ipv6_buf + HEADER_SIZE + 1, len-1);
 				make_crc((unsigned char*)psTimers, sizeof(tsTimers));
 				SetDateTime();
 				get_time();
@@ -1284,6 +1384,9 @@ teTunStatus eTunDeviceReadPacket(void)
 				sModuleGetConfig.u8RadiusOff = psModuleSetConfig->u8RadiusOff;
 				sModuleGetConfig.u16LampsInTable = htons(u16_LampsInTable);
 				sModuleGetConfig.u16LampsConnected = htons(u16_LampsConnected);
+				sModuleGetConfig.u8INT_resetGPRShours = psModuleSetConfig->u8INT_resetGPRShours;
+				sModuleGetConfig.u8INT_resetGPRSminuts = psModuleSetConfig->u8INT_resetGPRSminuts;
+				sModuleGetConfig.u8EnableEnergyMeter = psModuleSetConfig->u8EnableEnergyMeter;
 				ipv6_buf[0] = (sizeof(tsConfigBorderRuter)+1) >> 8;
 				ipv6_buf[1] = (sizeof(tsConfigBorderRuter)+1) & 0xFF;
 				ipv6_buf[2] = VERSION;
@@ -1292,12 +1395,18 @@ teTunStatus eTunDeviceReadPacket(void)
 				SendPacage( HEADER_SIZE + 1 + sizeof(tsConfigBorderRuter) );
 				break;
 			case COMMAND_SET_HOST_DATA:
-				memcpy(&sModuleSetConfig, ipv6_buf + HEADER_SIZE + 1, sizeof(tsConfigBorderRuter));
-				make_crc((unsigned char*)psModuleSetConfig, sizeof(tsConfigBorderRuter));
-				#ifndef NO_COORDINATOR
-				eJennicModuleStart();
-				#endif
-				SendACK();
+				{
+					memset(psModuleSetConfig, 0, sizeof(tsConfigBorderRuter));	//V5 при SET... първо нулираме а после взимаме len-1 данни
+					memcpy(psModuleSetConfig, ipv6_buf + HEADER_SIZE + 1, len-1);
+					make_crc((unsigned char*)psModuleSetConfig, sizeof(tsConfigBorderRuter));
+					//int i;
+					//for ( i = 0; i < sizeof(tsConfigBorderRuter); i++)printf("%02X", *(((unsigned char*)psModuleSetConfig) + i));
+					//printf("\n\r sizeof(tsConfigBorderRuter) %d len - 1 %d\n\r",sizeof(tsConfigBorderRuter),len-1);
+					#ifndef NO_COORDINATOR
+					eJennicModuleStart();
+					#endif
+					SendACK();
+				}
 				break;
 			case IPv6_PACKET:
 				//memcpy(ipv6_buf, b + HEADER_SIZE + 1, len - 1);

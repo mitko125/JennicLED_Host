@@ -312,6 +312,7 @@ void TestSubTreeNodes(void){
 	GetSubTreeNodes();
 }
 
+static uint8_t old_resetGPRShours = 255,old_resetGPRSminuts=255,first_wait_resetGPRSminuts = 2;
 void main_loop(void){
 
 #ifndef WIN32
@@ -389,6 +390,30 @@ void main_loop(void){
 		memcpy(&(sRouterStatus.sLastDateTime), date_time, sizeof(tsDateTime));
 
 		if( error_clock == 0 ){
+			if( first_wait_resetGPRSminuts == 0 ){
+				uint8_t INT_hour,INT_minute;
+				INT_hour = BCD_INT(date_time[2]);
+				INT_minute = BCD_INT(date_time[1]);
+				//printf("%02d:%02d %d %d %02d:%02d %d\n\r", INT_hour, INT_minute, old_resetGPRShours, old_resetGPRSminuts, sModuleSetConfig.u8INT_resetGPRShours, sModuleSetConfig.u8INT_resetGPRSminuts, sModuleSetConfig.u8EnableEnergyMeter);
+				if( sModuleSetConfig.u8INT_resetGPRShours ){
+					if( old_resetGPRShours != INT_hour ){
+						if( ( INT_hour % sModuleSetConfig.u8INT_resetGPRShours ) == 0 ){
+							if( sModuleSetConfig.u8INT_resetGPRSminuts == INT_minute ){
+								old_resetGPRShours = INT_hour;
+								ResetSIM();
+							}
+						}
+					}
+				}else if( sModuleSetConfig.u8INT_resetGPRSminuts ){
+					if( old_resetGPRSminuts != INT_minute ){
+						if( ( INT_minute % sModuleSetConfig.u8INT_resetGPRSminuts ) == 0 ){
+							old_resetGPRSminuts = INT_minute;
+							ResetSIM();
+						}
+					}
+				}
+			}else
+				first_wait_resetGPRSminuts --;
 			int result;
 			curren_time[0] = date_time[2]; curren_time[1] = date_time[1];
 

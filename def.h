@@ -167,6 +167,10 @@ PACKED(
 	uint8_t			  u8RadiusOff;
 	uint16_t			u16LampsInTable;
 	uint16_t			u16LampsConnected;
+	//V5
+	uint8_t				u8INT_resetGPRShours;
+	uint8_t				u8INT_resetGPRSminuts;
+	uint8_t				u8EnableEnergyMeter;
 })tsConfigBorderRuter;
 
 PACKED(
@@ -261,8 +265,8 @@ PACKED(
 	uint32_t u32JennicDeviceVersion;
 	uint8_t u8Inputs;
 	uint8_t u8Outputs;
-	tsDateTime sDateTimeResetGPRS;	// > V3.0.0
-	tsDateTime sDateTimeLastClient;	// > V3.0.0 PC н€ма нужда да го чете,чете се само от  онцентратора
+	tsDateTime sDateTimeResetGPRS;	// V4 > V3.0.0
+	tsDateTime sDateTimeLastClient;	// V4 > V3.0.0 PC н€ма нужда да го чете,чете се само от  онцентратора
 })tsRouterStatus;
 
 PACKED(

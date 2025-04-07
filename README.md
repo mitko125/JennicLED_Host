@@ -25,3 +25,15 @@
 ## V3 добавен е електромер, няма го по обекти
 
 ## V4 добавена е допълнителна диагностика за SIM, може да заменя и до V1.1.0 само на 10 секунди ще мърмори че няма електормер
+
+## V4.00.01 смяна дизайн на текстове
+
+## V5 заменя всички по-стари даже и при стари и нови PC програми
+
+започва и преправяне да рабоят с по стари PC програми (търсете V5) //V5 при SET... първо нулираме а после взимаме len-1 данни  
+ако се увеличават данни за сетване да се използва този механизъм  
+при SEND_LAMPS_MAC_TABLE освен нулирането на sLastContacts се нулира и u32WorkHours  
+ в tsConfigBorderRuter е въведено разрешение за елетромерите (u8EnableEnergyMeter!=0) по-нататък може да избира модела електромер.  
+въведени са и час и минути за ресетване на GPRS	u8INT_resetGPRShours,u8INT_resetGPRSminuts  
+ if( u8INT_resetGPRShours != 0 ){ if( ( hours % u8INT_resetGPRShours ) == 0 ) reset in( u8INT_resetGPRShours +   u8INT_resetGPRSminuts )  
+ }else( if( u8INT_resetGPRSminuts != 0 ) if( ( minuts % u8INT_resetGPRSminuts ) == 0 ) reset in( evryHour , evrt.u8INT_resetGPRSminuts ) }

@@ -605,7 +605,7 @@ static teModuleStatus eJennicModuleProcessMessageIPv6(uint32_t u32Length, uint8_
 
 								int16_t i16Lenght = lenght;
 								i16Lenght -= 19;
-								daemon_log(LOG_DEBUG, "JenNetNetworkBlobTable  NORE %d Version %d lenght %d", u16NumberOffRemainingEntries, u16TableVersion, i16Lenght);
+								daemon_log(LOG_DEBUG, "JenNetNetworkBlobTable  NODE %d Version %d lenght %d", u16NumberOffRemainingEntries, u16TableVersion, i16Lenght);
 								ProcesNetworkRouterTable(pu8Data + 40 + 19, i16Lenght);
 							}
 						}

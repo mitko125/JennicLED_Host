@@ -8,7 +8,7 @@
 #а с уличните осветители чрез рутер на Jennic V1.8.2
 #командите са от teCommandsPC
 
-#V1.0.0 първа работна версия монтирана на 46 хоста
+#V1.0.0 първа работна версия монтирана на 46 хоста заменен с V1.1.0
 
 #V1.1.0 при зареждане на MAC за RADIUS се нулира sLastContacts времето за последно виждане на лампата
 #всички съобщения които са само за приемане се отговаря с ACK с цел дебуфириране на TCP пакетите (няма flush)
@@ -24,9 +24,19 @@
 #V3 добавен е електромер, няма го по обекти
 
 #V4 добавена е допълнителна диагностика за SIM, може да заменя и до V1.1.0 само на 10 секунди ще мърмори че няма електормер
+#V4.00.01 смяна дизайн на текстове
+
+#V5 заменя всички по-стари даже и при стари и нови PC програми
+#започва и преправяне да рабоят с по стари PC програми (търсете V5) //V5 при SET... първо нулираме а после взимаме len-1 данни
+#ако се увеличават данни за сетване да се използва този механизъм
+#при SEND_LAMPS_MAC_TABLE освен нулирането на sLastContacts се нулира и u32WorkHours
+# в tsConfigBorderRuter е въведено разрешение за елетромерите (u8EnableEnergyMeter!=0) по-нататък може да избира модела електромер.
+#въведени са и час и минути за ресетване на GPRS	u8INT_resetGPRShours,u8INT_resetGPRSminuts
+# if( u8INT_resetGPRShours != 0 ){ if( ( hours % u8INT_resetGPRShours ) == 0 ) reset in( u8INT_resetGPRShours + u8INT_resetGPRSminuts )
+# }else( if( u8INT_resetGPRSminuts != 0 ) if( ( minuts % u8INT_resetGPRSminuts ) == 0 ) reset in( evryHour , evrt.u8INT_resetGPRSminuts ) }
 
 #HOST_VERSION = 0x00010100UL
-HOST_VERSION = 0x00040000UL
+HOST_VERSION = 0x00050000UL
 
 MCU = atxmega128a1
 

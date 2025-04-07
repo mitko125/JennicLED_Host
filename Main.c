@@ -59,7 +59,7 @@ void get_pin(void){
 	strcpy_s(pin,5,PIN_STR);
 }
 
-#define HOST_VERSION 0x00040000UL
+#define HOST_VERSION 0x00050000UL
 
 
 #else	// WIN32
@@ -355,12 +355,12 @@ int main(void){
 				key_c = 1;
 				break;
 			case 'd':
+			case 'D':
 				printf_P(PSTR("\n\rLast SIM Reset: "));
 				PrintDateTime(&sRouterStatus.sDateTimeResetGPRS.date_time[0]);
 				printf_P(PSTR(" read From client: "));
 				PrintDateTime(&sRouterStatus.sDateTimeLastClient.date_time[0]);
 				printf_P(PSTR("\n\r\n\r"));
-			case 'D':
 				break;
 #endif //WIN32
 			case 'q':

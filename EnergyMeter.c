@@ -66,8 +66,6 @@ typedef union bits32{
 volatile uint8_t ENERGY_METER_time_wait_s = 2;
 volatile uint8_t ENERGY_METER_time_ERR_s;
 
-uint8_t enable_ENERGY_METER = 1;
-
 void ENERGY_METER_init(void){
 	MODBUS_Master_init();
 }
@@ -75,7 +73,7 @@ void ENERGY_METER_init(void){
 static uint8_t fl_odd;
 
 void ENERGY_METER_Loop(void){
-	if( enable_ENERGY_METER ){
+	if( psModuleSetConfig->u8EnableEnergyMeter ){
 	
 		MODBUS_Master_Loop();
 		

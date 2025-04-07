@@ -63,16 +63,66 @@ void save_RAM(void)
 		
 }
 
+#undef FAST_GET_TIME
+
+#ifdef FAST_GET_TIME
+static uint16_t INT_sim_hour = 0, INT_sim_minute = 0, old_sec = 100;
+void first_get_time(void)
+#else
 void get_time(void)
+#endif
 {
 	SYSTEMTIME lpSystemTime;
 	GetLocalTime(&lpSystemTime);	//GetSystemTime - по Гринуич  GetLocalTime - местно време
 	date_time[5] = INT_BCD((lpSystemTime.wYear % 100));
 	date_time[4] = INT_BCD(lpSystemTime.wMonth);
 	date_time[3] = INT_BCD(lpSystemTime.wDay);
-	date_time[2] = INT_BCD((lpSystemTime.wHour));// +3));
+	date_time[2] = INT_BCD(lpSystemTime.wHour);// +3));
 	date_time[1] = INT_BCD(lpSystemTime.wMinute);
 	date_time[0] = INT_BCD(lpSystemTime.wSecond);
+#ifdef FAST_GET_TIME
+	INT_sim_hour = lpSystemTime.wHour;
+	INT_sim_minute = lpSystemTime.wMinute;
+	old_sec = lpSystemTime.wSecond;
+/*	printf_P(PSTR("\n\rTime %02d:%02d  "),INT_sim_hour, INT_sim_minute);
+	PrintDateTime(date_time);
+	printf_P(PSTR("\n\r"));*/
+#endif
+}
+
+#ifdef FAST_GET_TIME
+static uint8_t fl_first_get_time = 1;
+void get_time(void)
+{
+	if (fl_first_get_time) {
+		fl_first_get_time = 0;
+		first_get_time();
+	}
+	SYSTEMTIME lpSystemTime;
+	GetLocalTime(&lpSystemTime);
+	uint16_t sec = lpSystemTime.wSecond;
+	if( old_sec != sec ){
+		old_sec = sec;
+		if( ++INT_sim_minute  >= 60 ){
+			INT_sim_minute = 0;
+			if( ++INT_sim_hour >= 24 ){
+				INT_sim_hour = 0;
+			}
+		}
+		//printf("%02d:%02d\n\r", INT_sim_hour, INT_sim_minute);
+		date_time[2] = INT_BCD(INT_sim_hour);
+		date_time[1] = INT_BCD(INT_sim_minute);
+		date_time[0] = INT_BCD(sec);
+	}
+}
+#endif
+
+void ResetSIM(void){
+	if (verbosity >= LOG_DEBUG) {
+		printf_P(PSTR("\n\rReset SIM in Time: "));
+		PrintDateTime(date_time);
+		printf_P(PSTR("\n\r"));
+	}
 }
 
 void SetDateTime(void){
@@ -83,8 +133,8 @@ static time_t  sLastLoop = 0;
 
 void ENERGY_METER_init(void){
 
-		
 	get_time();
+
 	sLastLoop = time(NULL);
 	
 	memcpy(&(sCurrentEnergy.sLastContact), date_time, sizeof(tsDateTime));
@@ -143,9 +193,10 @@ void ENERGY_METER_init(void){
 void ENERGY_METER_Loop(void){
 	if (difftime(time(NULL), sLastLoop) > 4){
 		sLastLoop = time(NULL);
-		
-		memcpy(&(sCurrentEnergy.sLastContact), date_time, sizeof(tsDateTime));
-		sCurrentEnergy.Active_power += (float)0.1;
-		AddCurrentEnergyInArray();
+		if( psModuleSetConfig->u8EnableEnergyMeter ){
+			memcpy(&(sCurrentEnergy.sLastContact), date_time, sizeof(tsDateTime));
+			sCurrentEnergy.Active_power += (float)0.1;
+			AddCurrentEnergyInArray();
+		}
 	}
 }
