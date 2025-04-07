@@ -5,11 +5,13 @@
 
 #include "hardware.h"
 
+#include "def.h"
+
 
 /* \brief  Receive buffer size: 2,4,8,16,32,64,128 or 256 bytes. */
-#define USART_RX_BUFFER_SIZE 512
+#define USART_RX_BUFFER_SIZE 1024
 /* \brief Transmit buffer size: 2,4,8,16,32,64,128 or 256 bytes */
-#define USART_TX_BUFFER_SIZE 512
+#define USART_TX_BUFFER_SIZE 1024
 /* \brief Receive buffer mask. */
 #define USART_RX_BUFFER_MASK ( USART_RX_BUFFER_SIZE - 1 )
 /* \brief Transmit buffer mask. */
@@ -17,17 +19,17 @@
 
 
 #if ( USART_RX_BUFFER_SIZE & USART_RX_BUFFER_MASK )
-#error RX buffer size is not a power of 2
+#error uGPRS_RX_Buf buffer size is not a power of 2
 #endif
 #if ( USART_TX_BUFFER_SIZE & USART_TX_BUFFER_MASK )
-#error TX buffer size is not a power of 2
+#error u8GPRS_TX_Buf buffer size is not a power of 2
 #endif
 
 
 /* \brief Receive buffer. */
-static volatile uint8_t RX[USART_RX_BUFFER_SIZE];
+//static volatile uint8_t uGPRS_RX_Buf[USART_RX_BUFFER_SIZE];
 /* \brief Transmit buffer. */
-static volatile uint8_t TX[USART_TX_BUFFER_SIZE];
+//static volatile uint8_t u8GPRS_TX_Buf[USART_TX_BUFFER_SIZE];
 /* \brief Receive buffer head. */
 static volatile uint16_t RX_Head;
 /* \brief Receive buffer tail. */
@@ -47,7 +49,7 @@ uint8_t GPRS_get_char(void){
 	uint8_t ans;
 
 	while( RX_Head == RX_Tail);
-	ans = (RX[RX_Tail]);
+	ans = (uGPRS_RX_Buf[RX_Tail]);
 
 	/* Advance buffer tail. */
 	RX_Tail = (RX_Tail + 1) & USART_RX_BUFFER_MASK;
@@ -59,7 +61,7 @@ int sim_serial_read(unsigned char *data){
 	if( RX_Head == RX_Tail)
 		return 0;
 		
-	*data = (RX[RX_Tail]);
+	*data = (uGPRS_RX_Buf[RX_Tail]);
 
 	/* Advance buffer tail. */
 	RX_Tail = (RX_Tail + 1) & USART_RX_BUFFER_MASK;
@@ -93,7 +95,7 @@ void GPRS_put_char(uint8_t data){
 
 	while( !USART_TXBuffer_FreeSpace());
 
-  TX[tempTX_Head=TX_Head]= data;
+  u8GPRS_TX_Buf[tempTX_Head=TX_Head]= data;
 	/* Advance buffer head. */
 	TX_Head = (tempTX_Head + 1) & USART_TX_BUFFER_MASK;
 
@@ -106,7 +108,7 @@ int sim_serial_write(const unsigned char data){
 
 	while( !USART_TXBuffer_FreeSpace());
 
-  TX[tempTX_Head=TX_Head]= data;
+  u8GPRS_TX_Buf[tempTX_Head=TX_Head]= data;
 	/* Advance buffer head. */
 	TX_Head = (tempTX_Head + 1) & USART_TX_BUFFER_MASK;
 
@@ -132,7 +134,7 @@ ISR(GPRS_RX_vect)
 	if (tempRX_Head == RX_Tail) {
 	  ;
 	}else{
-		RX[RX_Head] = data;
+		uGPRS_RX_Buf[RX_Head] = data;
 		RX_Head = tempRX_Head;
 	}
 }
@@ -152,7 +154,7 @@ ISR(GPRS_DRE_vect)
 	}else{
 		//GPRS_Port.OUTSET = GPRS_DIR_PIN;
 		/* Start transmitting. */
-		GPRS_uart.DATA = TX[TX_Tail];
+		GPRS_uart.DATA = u8GPRS_TX_Buf[TX_Tail];
 
 		/* Advance buffer tail. */
 		TX_Tail = (TX_Tail + 1) & USART_TX_BUFFER_MASK;
@@ -180,7 +182,7 @@ void GPRS_UartInit(void){
 		/* Enable RXC interrupt. */
 		GPRS_uart.CTRLA = USART_RXCINTLVL_LO_gc | USART_TXCINTLVL_LO_gc;
 
-		/* Enable both RX and TX. */
+		/* Enable both uGPRS_RX_Buf and u8GPRS_TX_Buf. */
 		GPRS_uart.CTRLB = 0;
 		USART_Rx_Enable(&GPRS_uart);
 		USART_Tx_Enable(&GPRS_uart);

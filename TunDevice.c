@@ -834,6 +834,14 @@ static void SendPacage(int len){
 #endif //SIM_900
 }
 
+static void SendACK(void){
+	ipv6_buf[0] = (1) >> 8;
+	ipv6_buf[1] = (1) & 0xFF;
+	ipv6_buf[2] = VERSION;
+	ipv6_buf[3] = ACK;
+	SendPacage(HEADER_SIZE + 1);
+}
+
 teTunStatus eTunDeviceReadPacket(void)
 {
 	int len;
@@ -869,6 +877,7 @@ teTunStatus eTunDeviceReadPacket(void)
 							break;
 						}
 					}
+					SendACK();
 				}
 				break;
 			case SEND_LAMPS_MAC_TABLE:
@@ -888,10 +897,12 @@ teTunStatus eTunDeviceReadPacket(void)
 
 					for (i = 0; i < u16EntryCount;i++) {
 						memcpy(&((psLampTable + u16FirstTableEntry + i)->sLampStatus.sMAC_Address.MAC[0]), psMAC_Address, sizeof(tsMAC_Address));
+						memset(&((psLampTable + u16FirstTableEntry + i)->sLampStatus.sLastContacts), 0, sizeof(tsDateTime));
 						psMAC_Address++;
 					}
 					if (psSendLamsMAC->u8FlagEnd)
 						u16_LampsInTable = u16FirstTableEntry + u16EntryCount;
+					SendACK();
 				}
 				break;
 			case GET_LAMPS_STATUS:
@@ -983,6 +994,7 @@ teTunStatus eTunDeviceReadPacket(void)
 				memcpy(&sModuleSetConfig, ipv6_buf + HEADER_SIZE + 1, sizeof(tsConfigBorderRuter));
 				make_crc((unsigned char*)psModuleSetConfig, sizeof(tsConfigBorderRuter));
 				eJennicModuleStart();
+				SendACK();
 				break;
 			case IPv6_PACKET:
 				//memcpy(ipv6_buf, b + HEADER_SIZE + 1, len - 1);
@@ -990,17 +1002,21 @@ teTunStatus eTunDeviceReadPacket(void)
 				break;
 			case COMMAND_ON:
 				OnLamp();
+				SendACK();
 				break;
 			case COMMAND_OFF:
 				OffLamp();
+				SendACK();
 				break;
 			case COMMAND_CLEAR_RAM:
 				ClearRam();
 				eJennicModuleStart();
+				SendACK();
 				break;
 			case COMMAND_TIME_ON_OFF:
 				memcpy(&(psTimers->sTimerOn),ipv6_buf + HEADER_SIZE + 1,sizeof(tsTimerHourMinute));
 				memcpy(&(psTimers->sTimerOff),ipv6_buf + HEADER_SIZE + 1 + sizeof(tsTimerHourMinute) ,sizeof(tsTimerHourMinute));
+				SendACK();
 				break;
 			case GET_STATUS_ROUTER:
 				ipv6_buf[0] = (sizeof(tsRouterStatus) + 1) >> 8;

@@ -363,13 +363,36 @@ teModuleStatus GroupSetUint8ByModuleID(uint8_t group,uint32_t ModuleID, uint8_t 
 	return eJennicModuleSendMessageIPv6((struct in6_addr*)&my_local_address,(struct in6_addr*) &group_prefix, 11, buffer);
 }
 
+teModuleStatus GetSubTreeNodes(void){
+	uint8_t buffer[20];
+
+	if (eModuleState != E_STATE_RUNNING)
+		return E_MODULE_ERROR;
+	
+	//JenNet Module NetworkTable blob table
+	uint8_t mouleIndex = 0x01;
+	uint8_t VariableIndex = 0x03;
+	
+	buffer[0] = VERSION;
+	buffer[1] = 0x10;	//Get_request
+	buffer[2] = rand() & 0x7F;
+
+	buffer[3] = mouleIndex;
+
+	buffer[4] = VariableIndex;
+
+	buffer[5] = 1;
+	
+	return eJennicModuleSendMessageIPv6((struct in6_addr*)&my_sors_address, (struct in6_addr*) &sRouterAddress, 6, buffer);
+}
+
 teModuleStatus GetJenNetNetworkRouter(uint16_t u16FirstTableEntry, uint8_t u8EntryCount) {
 	uint8_t buffer[20];
 
 	if (eModuleState != E_STATE_RUNNING)
 		return E_MODULE_ERROR;
 
-	//JenNet Module NetworkTable blob table
+/*	//JenNet Module NetworkTable blob table
 	uint32_t ModuleID = 0xFFFFFF01;
 	uint8_t VariableIndex = 0x04;
 	
@@ -389,7 +412,26 @@ teModuleStatus GetJenNetNetworkRouter(uint16_t u16FirstTableEntry, uint8_t u8Ent
 
 	buffer[10] = u8EntryCount;
 
-	return eJennicModuleSendMessageIPv6((struct in6_addr*)&my_sors_address, (struct in6_addr*) &sRouterAddress, 11, buffer);
+	return eJennicModuleSendMessageIPv6((struct in6_addr*)&my_sors_address, (struct in6_addr*) &sRouterAddress, 11, buffer);*/
+	
+	//JenNet Module NetworkTable blob table
+	uint8_t mouleIndex = 0x01;
+	uint8_t VariableIndex = 0x04;
+	
+	buffer[0] = VERSION;
+	buffer[1] = 0x10;	//Get_request
+	buffer[2] = rand() & 0x7F;
+
+	buffer[3] = mouleIndex;
+
+	buffer[4] = VariableIndex;
+
+	buffer[5] = (u16FirstTableEntry >> 8) & 0xFF;
+	buffer[6] = (u16FirstTableEntry) & 0xFF;;
+
+	buffer[7] = u8EntryCount;
+
+	return eJennicModuleSendMessageIPv6((struct in6_addr*)&my_sors_address, (struct in6_addr*) &sRouterAddress, 8, buffer);
 }
 
 tsMAC_Address sMAC_Request;

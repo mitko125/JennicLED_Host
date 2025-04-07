@@ -249,7 +249,7 @@ PACKED(
 	tsDateTime sDateTimeClearRAM;
 	tsDateTime sDateTimeOn;
 	tsDateTime sDateTimeOff;
-	tsDateTime sLaseDateTime;
+	tsDateTime sLastDateTime;
 	uint8_t u8CSQ;
 	uint8_t u8JenniceModuleState;
 	uint32_t u32HostVersion;
@@ -283,4 +283,16 @@ PACKED(
 
 #define OFFSET_sRouterStatus (OFFSET_psLampTable + (sizeof(tsLamp)*ROUTE_TABLE_ENTRIES))
 #define sRouterStatus (*((tsRouterStatus*)(p_E_RAM+OFFSET_sRouterStatus)))
+
+#define OFFSET_u8CRD2_RX_Buf (OFFSET_sRouterStatus + sizeof(tsRouterStatus))
+#define u8CRD2_RX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8CRD2_RX_Buf))
+
+#define OFFSET_u8CRD2_TX_Buf (OFFSET_u8CRD2_RX_Buf + 1024)
+#define u8CRD2_TX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8CRD2_TX_Buf))
+
+#define OFFSET_u8GPRS_RX_Buf (OFFSET_u8CRD2_TX_Buf + 1024)
+#define uGPRS_RX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8GPRS_RX_Buf))
+
+#define OFFSET_u8GPRS_TX_Buf (OFFSET_u8GPRS_RX_Buf + 1024)
+#define u8GPRS_TX_Buf ((uint8_t*)(p_E_RAM+OFFSET_u8GPRS_TX_Buf))
 

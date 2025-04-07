@@ -94,7 +94,7 @@ int serial_open(int port, uint32_t baud)
 			0);
 
 	if( (HANDLE)fd == INVALID_HANDLE_VALUE)	 {
-    daemon_log(LOG_ERR, "Couldn't open serial device %s", device,0);
+    daemon_log(LOG_ERR, "Couldn't open serial device %s", device);
     return -1;
   }
 

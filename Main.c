@@ -112,7 +112,7 @@ int main(void){
 	sRouterStatus.u32HostVersion = htonl(HOST_VERSION);
 	sRouterStatus.u32JennicDeviceVersion = 0;
 	memcpy(&(sRouterStatus.sDateTimeOn), date_time, sizeof(tsDateTime));
-	memcpy(&(sRouterStatus.sDateTimeOff), &(sRouterStatus.sLaseDateTime), sizeof(tsDateTime));
+	memcpy(&(sRouterStatus.sDateTimeOff), &(sRouterStatus.sLastDateTime), sizeof(tsDateTime));
 	
 
 
@@ -258,6 +258,14 @@ int main(void){
 #endif //WIN32
 			case '0':
 				eJennicModuleStart();
+				break;
+			case 'l':
+			case 'L':
+				TestNetworkRouterTable();
+				break;
+			case 'k':
+			case 'K':
+				TestSubTreeNodes();
 				break;
 #ifndef WIN32
 			case 'p':

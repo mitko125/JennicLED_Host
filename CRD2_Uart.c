@@ -7,15 +7,16 @@
 #include "hardware.h"
 
 #include "log.h"
+#include "def.h"
 
 #define DEBUG 0
 
 int verbosity;
 
 /* \brief  Receive buffer size: 2,4,8,16,32,64,128 or 256 bytes. */
-#define USART_RX_BUFFER_SIZE 256
+#define USART_RX_BUFFER_SIZE 1024
 /* \brief Transmit buffer size: 2,4,8,16,32,64,128 or 256 bytes */
-#define USART_TX_BUFFER_SIZE 256
+#define USART_TX_BUFFER_SIZE 1024
 /* \brief Receive buffer mask. */
 #define USART_RX_BUFFER_MASK ( USART_RX_BUFFER_SIZE - 1 )
 /* \brief Transmit buffer mask. */
@@ -23,17 +24,17 @@ int verbosity;
 
 
 #if ( USART_RX_BUFFER_SIZE & USART_RX_BUFFER_MASK )
-#error RX buffer size is not a power of 2
+#error u8CRD2_RX_Buf buffer size is not a power of 2
 #endif
 #if ( USART_TX_BUFFER_SIZE & USART_TX_BUFFER_MASK )
-#error TX buffer size is not a power of 2
+#error u8CRD2_TX_Buf buffer size is not a power of 2
 #endif
 
 
 /* \brief Receive buffer. */
-static volatile uint8_t RX[USART_RX_BUFFER_SIZE];
+//static volatile uint8_t u8CRD2_RX_Buf[USART_RX_BUFFER_SIZE];
 /* \brief Transmit buffer. */
-static volatile uint8_t TX[USART_TX_BUFFER_SIZE];
+//static volatile uint8_t u8CRD2_TX_Buf[USART_TX_BUFFER_SIZE];
 /* \brief Receive buffer head. */
 static volatile uint16_t RX_Head;
 /* \brief Receive buffer tail. */
@@ -53,12 +54,12 @@ int serial_read(unsigned char *data){
 	
 	if( RX_Head == RX_Tail)
 		return 0;
-	*data = (RX[RX_Tail]);
+	*data = (u8CRD2_RX_Buf[RX_Tail]);
 
 	/* Advance buffer tail. */
 	RX_Tail = (RX_Tail + 1) & USART_RX_BUFFER_MASK;
 #if DEBUG
-    if (verbosity >= LOG_DEBUG) daemon_log(LOG_DEBUG, "RX %02x", *data);
+    if (verbosity >= LOG_DEBUG) daemon_log(LOG_DEBUG, "u8CRD2_RX_Buf %02x", *data);
 #endif /* DEBUG */
 	return 1;
 }
@@ -67,7 +68,7 @@ uint8_t CRD2_get_char(void){
 	uint8_t ans;
 
 	while( RX_Head == RX_Tail);
-	ans = (RX[RX_Tail]);
+	ans = (u8CRD2_RX_Buf[RX_Tail]);
 
 	/* Advance buffer tail. */
 	RX_Tail = (RX_Tail + 1) & USART_RX_BUFFER_MASK;
@@ -98,14 +99,14 @@ static bool USART_TXBuffer_FreeSpace(void)
 int serial_write(uint8_t data){
 
 #if DEBUG
-    if (verbosity >= LOG_DEBUG) daemon_log(LOG_DEBUG, "TX %02x", data);
+    if (verbosity >= LOG_DEBUG) daemon_log(LOG_DEBUG, "u8CRD2_TX_Buf %02x", data);
 #endif /* DEBUG */
 	
 	uint16_t tempTX_Head;
 
 	while( !USART_TXBuffer_FreeSpace());
 
-  TX[tempTX_Head=TX_Head]= data;
+  u8CRD2_TX_Buf[tempTX_Head=TX_Head]= data;
 	/* Advance buffer head. */
 	TX_Head = (tempTX_Head + 1) & USART_TX_BUFFER_MASK;
 
@@ -133,7 +134,7 @@ ISR(CRD2_RX_vect)
 	if (tempRX_Head == RX_Tail) {
 	  ;
 	}else{
-		RX[RX_Head] = data;
+		u8CRD2_RX_Buf[RX_Head] = data;
 		RX_Head = tempRX_Head;
 	}
 }
@@ -153,7 +154,7 @@ ISR(CRD2_DRE_vect)
 	}else{
 		//CRD2_Port.OUTSET = CRD2_DIR_PIN;
 		/* Start transmitting. */
-		CRD2_uart.DATA = TX[TX_Tail];
+		CRD2_uart.DATA = u8CRD2_TX_Buf[TX_Tail];
 
 		/* Advance buffer tail. */
 		TX_Tail = (TX_Tail + 1) & USART_TX_BUFFER_MASK;
@@ -181,7 +182,7 @@ void CRD2_UartInit(void){
 		/* Enable RXC interrupt. */
 		CRD2_uart.CTRLA = USART_RXCINTLVL_LO_gc | USART_TXCINTLVL_LO_gc;
 
-		/* Enable both RX and TX. */
+		/* Enable both u8CRD2_RX_Buf and u8CRD2_TX_Buf. */
 		CRD2_uart.CTRLB = 0;
 		USART_Rx_Enable(&CRD2_uart);
 		USART_Tx_Enable(&CRD2_uart);

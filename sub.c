@@ -20,6 +20,9 @@
 #include "JennicModule.h"
 #include "TunDevice.h"
 
+//#undef LOG_DEBUG
+//#define LOG_DEBUG 6
+
 unsigned char date_time[6];
 unsigned char error_clock;
 uint32_t time_1s = 0;
@@ -79,6 +82,7 @@ void text(void){
 	printf_P(PSTR("r RADIUS table\n\r"));
 	printf_P(PSTR("v Verbosity\n\r"));
 	printf_P(PSTR("x test CRC\n\r"));
+	printf_P(PSTR("k SubTreeNodes, l NetworkTable\n\r"));
 	
 #ifndef WIN32
 	printf_P(PSTR("Inputs: "));
@@ -115,10 +119,10 @@ uint8_t next_group = 255;
 
 static uint16_t u16Lamps=0;
 
-#define TIME_NETWROR_ROUTER 20	//sec 20sec*(300 in table/MAX_BLOB_NETWROR_ROUTER)=600sec=10min
+#define TIME_NETWROR_ROUTER 121	//на 2 минути
 #define BAD_TIME_WORK 50
 #define START_TIME_NETWROR_ROUTER (5*60)	//5min
-#define MAX_BLOB_NETWROR_ROUTER 10
+#define MAX_BLOB_NETWROR_ROUTER 255
 
 static uint16_t u16TimeNetworkRouter = START_TIME_NETWROR_ROUTER;
 
@@ -233,14 +237,21 @@ static int test_time(void) {
 
 void ProcesNetworkRouterTable(uint8_t * pu8Data, int16_t i16Lenght) {
 	if (on_relay) {
+		uint8_t fl_ok = 1;
+#if LOG_DEBUG == 6
+		daemon_log(LOG_DEBUG, "Recived lenght %d", i16Lenght);
+#endif
 		if (i16Lenght <= 0) {
+			fl_ok=0;
+			//u16FirstTableEntry = ROUTE_TABLE_ENTRIES + (2 * MAX_BLOB_NETWROR_ROUTER);
 			int i;
-			for (i = 0;i < u16_LampsInTable;i++) {
+			for (i = 0; i < u16_LampsInTable; i++) {
 				(psLampTable + i)->u8FlSee = 0;
 			}
 			u16FirstTableEntry = 0;
 			u16_LampsConnected = u16Lamps;
 			u16Lamps = 0;
+			daemon_log(LOG_DEBUG, "Connected %d of %d", u16_LampsConnected, u16_LampsInTable);
 		}
 		while (i16Lenght > 0) {
 			int i;
@@ -251,22 +262,40 @@ void ProcesNetworkRouterTable(uint8_t * pu8Data, int16_t i16Lenght) {
 
 			for (i = 0;i < u16_LampsInTable;i++) {
 				if (memcmp(&((psLampTable + i)->sLampStatus.sMAC_Address.MAC[0]), pu8Data, sizeof(tsMAC_Address)) == 0) {
-					daemon_log(LOG_DEBUG, "Ok");
+					
 					memcpy((psLampTable + i)->sLampStatus.sLastContacts.date_time, date_time, sizeof(tsDateTime));
 					AddWorkTime(psLampTable + i);
 					(psLampTable + i)->u32OldMinutes = time_1m;
 					if ((psLampTable + i)->u8FlSee == 0) {
 						(psLampTable + i)->u8FlSee = 1;
 						u16Lamps++;
-					}
+						daemon_log(LOG_DEBUG, "Ok");
+					}else
+						daemon_log(LOG_DEBUG, "Double report");
 					break;
 				}
 			}
 			pu8Data += 12;
 			i16Lenght -= 15;
+			
 			u16FirstTableEntry++;
 		}
+		if(fl_ok){
+			//u16FirstTableEntry += MAX_BLOB_NETWROR_ROUTER;
+			daemon_log(LOG_DEBUG, "Test at address %d", u16FirstTableEntry);
+			GetJenNetNetworkRouter( u16FirstTableEntry, MAX_BLOB_NETWROR_ROUTER);
+		}
 	}
+}
+
+void TestNetworkRouterTable(void){
+	u16FirstTableEntry=0;
+	daemon_log(LOG_DEBUG, "Test at address %d", u16FirstTableEntry);
+	GetJenNetNetworkRouter( u16FirstTableEntry, MAX_BLOB_NETWROR_ROUTER);
+}
+
+void TestSubTreeNodes(void){
+	GetSubTreeNodes();
 }
 
 void main_loop(void){
@@ -279,7 +308,24 @@ void main_loop(void){
 		if (--u16TimeNetworkRouter == 0) {
 			u16TimeNetworkRouter = TIME_NETWROR_ROUTER;
 			if (on_relay) {
-				GetJenNetNetworkRouter(u16FirstTableEntry, MAX_BLOB_NETWROR_ROUTER);
+				/*if (u16FirstTableEntry > ROUTE_TABLE_ENTRIES){//u16_LampsInTable) {
+					int i;
+					for (i = 0; i < u16_LampsInTable; i++) {
+						(psLampTable + i)->u8FlSee = 0;
+					}
+					u16FirstTableEntry = 0;
+					u16_LampsConnected = u16Lamps;
+					u16Lamps = 0;
+					daemon_log(LOG_DEBUG, "Connected %d of %d", u16_LampsConnected, u16_LampsInTable);
+				}
+				else
+					u16FirstTableEntry += MAX_BLOB_NETWROR_ROUTER;
+				daemon_log(LOG_DEBUG, "Test at address %d", u16FirstTableEntry);
+				GetJenNetNetworkRouter( u16FirstTableEntry, MAX_BLOB_NETWROR_ROUTER);*/
+				
+				u16FirstTableEntry=0;
+				daemon_log(LOG_DEBUG, "Test at address %d", u16FirstTableEntry);
+				GetJenNetNetworkRouter( u16FirstTableEntry, MAX_BLOB_NETWROR_ROUTER);
 			}
 		}
 		if (cou_broadcast) {
@@ -297,7 +343,7 @@ void main_loop(void){
 		time_1m++;
 		t_min_no_connect++;
 		
-		memcpy(&(sRouterStatus.sLaseDateTime), date_time, sizeof(tsDateTime));
+		memcpy(&(sRouterStatus.sLastDateTime), date_time, sizeof(tsDateTime));
 
 		if( error_clock == 0 ){
 			int result;

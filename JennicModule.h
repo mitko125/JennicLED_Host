@@ -73,6 +73,7 @@ typedef enum
 	SEND_LAMPS_STATUS		= 17,
 	SET_WORK_HOURS			= 18,
 	COMMAND_CLEAR_RAM		= 19,
+	ACK									= 20,
 } teCommandsPC;
 
 /****************************************************************************/
@@ -184,6 +185,8 @@ teModuleStatus GlobalSetUint8ByModuleID(uint32_t ModuleID, uint8_t VariableIndex
 teModuleStatus GroupSetUint8ByModuleID(uint8_t group, uint32_t ModuleID, uint8_t VariableIndex, uint8_t data);
 
 teModuleStatus GetJenNetNetworkRouter(uint16_t u16FirstTableEntry, uint8_t u8EntryCount);
+
+teModuleStatus GetSubTreeNodes(void);
 
 /****************************************************************************/
 /***        Local Functions                                               ***/
