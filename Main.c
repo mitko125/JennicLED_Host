@@ -56,10 +56,10 @@ int verbosity = LOG_NOTICE;//LOG_INFO;       /** Default log level */
 #ifdef WIN32
 
 void get_pin(void){
-	strcpy_s(pin,5,PIN_STR);
+	strcpy_s(pin,5,PIN_STR); 
 }
 
-#define HOST_VERSION 0x00050000UL
+#define HOST_VERSION 0x00060000UL
 
 
 #else	// WIN32
@@ -341,9 +341,35 @@ int main(void){
 			case 'j':
 			case 'J':
 				{
-					printf_P(PSTR("\n\rSendOnlyCommand 0-13 and Enter:"));
+					printf_P(PSTR("\n\rSendOnlyCommand 0-24 and Enter:"));
 					uint8_t data = get_digits();
 					SendOnlyCommand(BCD_INT(data));
+				}
+				break;	
+			case 'm':
+			case 'M':
+				{
+					uint8_t text[50],i,c;
+					text[i=0]=0;
+					printf_P(PSTR("\n\rWrite the AT command (eg AT + CIPSTATUS) and Enter:\n\r"));
+					while(1){
+						c = get_char();
+						if( c >= ' ' ){
+							text[i++] = c;
+							text[i]=0;
+							put_char(c);
+						}else{
+							if( c == 0x0D ){
+								printf_P(PSTR("\n\r"),c);
+								text[i++] = '\r';
+								text[i++] = '\n';
+								text[i]=0;
+								//printf((char*)text);
+								SendTextCommand(text);
+							}
+							break;
+						}
+					} 
 				}
 				break;
 			case 'g':

@@ -95,7 +95,7 @@ void text(void){
 	printf_P(PSTR("t Set On/Off\n\r"));
 #ifndef WIN32
 	printf_P(PSTR("test   GPRS a-AT, b-AT+CIPSERVER?, c-AT+CIPSTATUS, d-LastDateTime\n\r"));
-	printf_P(PSTR("status GPRS g-GetSimState, s-SetSimState, j-SendOnlyCommand\n\r"));
+	printf_P(PSTR("status GPRS g-GetSimState, s-SetSimState, j-SendOnlyCommand, m-ManualSend\n\r"));
 #endif //WIN32
 	printf_P(PSTR("r RADIUS table\n\r"));
 	printf_P(PSTR("v Verbosity\n\r"));

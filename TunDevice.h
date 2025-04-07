@@ -14,6 +14,7 @@ extern uint8_t key_a,key_b,key_c;
 void PrintSimState(void);
 void SetSimState(uint8_t new_state);
 void SendOnlyCommand(uint8_t new_state);
+void SendTextCommand(uint8_t *text);
 void ResetSIM(void);
 extern uint8_t t_min_no_connect;
 extern volatile uint16_t time_sleep_SIM;

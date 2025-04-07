@@ -434,6 +434,31 @@ void ResetSIM(void){
 		return;
 	}*/
 	{
+		SimWrite((unsigned char*)"AT+CIPSHUT\r\n");
+		cli();	//__disable_interrupt();
+		time_sleep_SIM = 10000;
+		sei();	//__enable_interrupt();
+		no_SimLoop = 1;
+		recived = 0;
+		while(time_sleep_SIM){
+			main_loop();
+			uint8_t u8Data;
+			while (sim_serial_read(&u8Data)) {
+				if( recived < MAX_RECIV )
+					buffer[recived] = u8Data;
+				recived++;
+				cli();	//__disable_interrupt();
+				time_sleep_SIM = 2000;
+				sei();	//__enable_interrupt();
+			}
+		}
+		if (recived) {
+			buffer[recived] = 0;
+			daemon_log(LOG_DEBUG, "From SIM in reset:%s",buffer);
+			recived = 0;
+		}
+		no_SimLoop = 0;
+		
 		daemon_log(LOG_DEBUG, "Off SIM");
 		PORT_GPRS_RST.OUTSET = GPRS_RST;
 		SleepSIM(1000);
@@ -458,7 +483,7 @@ void ResetSIM(void){
 		}
 		if (recived) {
 			buffer[recived] = 0;
-			daemon_log(LOG_DEBUG, "From SIM:%s",buffer);
+			daemon_log(LOG_DEBUG, "From SIM in reset:%s",buffer);
 			recived = 0;
 		}
 		no_SimLoop = 0;
@@ -487,7 +512,7 @@ void ResetSIM(void){
 		}
 		if (recived) {
 			buffer[recived] = 0;
-			daemon_log(LOG_DEBUG, "From SIM:%s",buffer);
+			daemon_log(LOG_DEBUG, "From SIM in reset:%s",buffer);
 			recived = 0;
 		}
 		no_SimLoop = 0;
@@ -572,6 +597,10 @@ void LoopRead(void) {
 			{
 				if (recived == 12) {
 					if (memcmp(buffer, "ATE0\r\n\r\nOK\r\n", recived) == 0) {
+						state = CIFSR_test;
+					}
+				}else if (recived == 6) {
+					if (memcmp(buffer, "\r\nOK\r\n", recived) == 0) {
 						state = CIFSR_test;
 					}
 				}
@@ -769,8 +798,13 @@ void LoopRead(void) {
 	}
 }
 
+void SendTextCommand(uint8_t *text){
+	SimWrite(text);
+	SimRead(buffer, sizeof(buffer));
+}
+
 void SendOnlyCommand(uint8_t new_state){
-	if( new_state > Opened ){
+	if( new_state > 24 ){
 		printf("\n\rError state\n\r");
 		return;
 	}else
@@ -872,10 +906,76 @@ void SendOnlyCommand(uint8_t new_state){
 			SimRead(buffer, sizeof(buffer));
 		}
 		break;
-		case Opened:
+		case 13:
+		{
+			SimWrite((unsigned char*)"AT+CIPSERVER=0\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case 14:
+		{
+			SimWrite((unsigned char*)"AT+CIPSTART=7,\"TCP\",\"79.100.161.227\",\"1873\"\r\n");//Средец ТП П.училище
+			//SimWrite((unsigned char*)"AT+CIPSTART=7,\"TCP\",\"83.228.109.121\",\"1873\"\r\n");//SIM test ELL
+			//SimWrite((unsigned char*)"AT+CIPSTART=7,\"TCP\",\"79.100.162.29\",\"1873\"\r\n");//Повредена карта сложена е от 15 Vivacom, но псле заработи със SIM към PC и сега е там
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case 15:
+		{
+			SimWrite((unsigned char*)"AT+CIPCLOSE=7\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case 16:
+		{
+			SimWrite((unsigned char*)"AT+CIPSEND=7\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case 17:
+		{
+			SimWrite((unsigned char*)"\32");	//$1A
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case 18:
+		{
+			SimWrite((unsigned char*)"AT+CIPSEND?\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case 19:
+		{
+			SimWrite((unsigned char*)"00010006\32");	//00010006$1A
+			SimRead(buffer, sizeof(buffer));
+		}break;
+		case 20:
+		{
+			SimWrite((unsigned char*)"AT\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case 22:
+		{
+			SimWrite((unsigned char*)"AT+CIPSHUT\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case 23:
+		{
+			SimWrite((unsigned char*)"AT+CIPSTATUS\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		case 24:
+		{
+			SimWrite((unsigned char*)"AT+CIPSERVER?\r\n");
+			SimRead(buffer, sizeof(buffer));
+		}
+		break;
+		default:
 		{
 			printf("Not to sim write\n\r");
-			SimRead(buffer, sizeof(buffer));
 		}
 		break;
 	}
@@ -1456,8 +1556,8 @@ teTunStatus eTunDeviceReadPacket(void)
 				SendPacage(HEADER_SIZE + 1 + sizeof(tsRouterStatus));
 				break;
 			case COMMAND_READ_CURRENT_ENERGY:
-				printf("\n\r%d %d %d\n\r\n\r",
-					sizeof(float),sizeof(double),sizeof(float));	
+				//printf("\n\r%d %d %d\n\r\n\r",
+				//	sizeof(float),sizeof(double),sizeof(float));	
 				ipv6_buf[0] = (sizeof(tsCurrentEnergy) + 1) >> 8;
 				ipv6_buf[1] = (sizeof(tsCurrentEnergy) + 1) & 0xFF;
 				ipv6_buf[2] = VERSION;

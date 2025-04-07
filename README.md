@@ -28,7 +28,7 @@
 
 ## V4.00.01 смяна дизайн на текстове
 
-## V5 заменя всички по-стари даже и при стари и нови PC програми
+## V5 заменя всички по-стари даже и при стари и нови PC програми (в Твърдица май всички са такива)
 
 започва и преправяне да рабоят с по стари PC програми (търсете V5) //V5 при SET... първо нулираме а после взимаме len-1 данни  
 ако се увеличават данни за сетване да се използва този механизъм  
@@ -37,3 +37,7 @@
 въведени са и час и минути за ресетване на GPRS	u8INT_resetGPRShours,u8INT_resetGPRSminuts  
  if( u8INT_resetGPRShours != 0 ){ if( ( hours % u8INT_resetGPRShours ) == 0 ) reset in( u8INT_resetGPRShours +   u8INT_resetGPRSminuts )  
  }else( if( u8INT_resetGPRSminuts != 0 ) if( ( minuts % u8INT_resetGPRSminuts ) == 0 ) reset in( evryHour , evrt.u8INT_resetGPRSminuts ) }
+
+## V6 поправени незначителни грешки. Инсталирани са 13 броя в Средец  
+
+разширен набор на ръчни команди 'j','J' към SIM картите и 'm','M' за ръчно въвеждане на AT команди
