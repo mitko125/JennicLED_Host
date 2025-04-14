@@ -416,12 +416,6 @@ uint8_t StartWinMyThread(void)
   return 0;	//>=0 O'K
 }
 
-void SendPacageToPC_Client(int len)
-{
-	last_clients = 7;
-	SendPacage(len);
-}
-
 void SendPacage(int len)
 {
 	if (my_sock[last_clients]) {
@@ -457,3 +451,5 @@ void SimLoop(void){
 
 //Фиктивни от SIM900
 uint8_t t_min_no_connect = 0;
+uint8_t client_number;
+uint8_t data_to_server;

@@ -366,6 +366,7 @@ void PrintSimState(void)
 
 static uint8_t to_close = 0;
 static uint8_t to_open = 0;
+static void SendPacageToPC_Client(int len);
 
 void SimLoop(void) {
 	if( no_SimLoop )
@@ -565,7 +566,7 @@ void SimLoop(void) {
 	}
 }
 
-void SendPacageToPC_Client(int len)
+static void SendPacageToPC_Client(int len)
 {
 	client_number = 7;
 	SendPacage(len);

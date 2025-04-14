@@ -14,6 +14,5 @@ extern volatile uint16_t time_sleep_SIM;
 
 void SimLoop(void);
 void SendPacage(int len);
-void SendPacageToPC_Client(int len);
 
 #endif //SIM900_H_INCLUDED

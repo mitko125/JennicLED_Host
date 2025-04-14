@@ -5,6 +5,8 @@
 extern unsigned char * p_E_RAM;
 
 extern uint8_t t_min_no_connect;
+extern uint8_t client_number;
+extern uint8_t data_to_server;
 
 void get_time(void);
 void InitHardware(void);
@@ -15,5 +17,4 @@ void ENERGY_METER_Loop(void);
 void ResetSIM(void);
 uint8_t StartWinMyThread(void);
 void SendPacage(int len);
-void SendPacageToPC_Client(int len);
 void SimLoop(void);
